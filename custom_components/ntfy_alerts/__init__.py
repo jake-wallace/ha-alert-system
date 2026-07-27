@@ -250,9 +250,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async_register_command(hass, _async_add_user, SCHEMA_WS_ADD_USER)
     async_register_command(hass, _async_remove_user, SCHEMA_WS_REMOVE_USER)
 
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig("/ntfy_alerts_card", hass.config.path("custom_components/ntfy_alerts/frontend"), cache_headers=False)]
-    )
+    try:
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig("/ntfy_alerts_card", hass.config.path("custom_components/ntfy_alerts/frontend"), cache_headers=False)]
+        )
+    except AttributeError:
+        hass.http.register_static_path(
+            "/ntfy_alerts_card", hass.config.path("custom_components/ntfy_alerts/frontend"), cache_headers=False
+        )
     add_extra_js_url(
         hass,
         "/ntfy_alerts_card/ntfy-alerts-card.js",
