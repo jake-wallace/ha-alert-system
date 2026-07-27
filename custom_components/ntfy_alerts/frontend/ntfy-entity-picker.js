@@ -1,4 +1,6 @@
-import { LitElement, html, css } from "https://unpkg.com/lit@2.7.0?module";
+const LitElement = Object.getPrototypeOf(customElements.get("hui-view"));
+const html = LitElement.prototype.html;
+const css = LitElement.prototype.css;
 
 class NtfyEntityPicker extends LitElement {
   static get properties() {
@@ -36,7 +38,7 @@ class NtfyEntityPicker extends LitElement {
     return html`
       <div class="picker">
         <ha-textfield
-          label="Search entities…"
+          label="Search entities\u2026"
           .value=${this.filter}
           @input=${(e) => (this.filter = e.target.value)}
           class="search"

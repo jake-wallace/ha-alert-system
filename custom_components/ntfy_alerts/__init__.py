@@ -9,6 +9,7 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.websocket_api import decorators, async_register_command
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_STATE_CHANGED
@@ -253,9 +254,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async_register_command(hass, _async_add_user, SCHEMA_WS_ADD_USER)
     async_register_command(hass, _async_remove_user, SCHEMA_WS_REMOVE_USER)
 
+    hass.http.register_static_path(
+        "/ntfy_alerts_card",
+        hass.config.path("custom_components/ntfy_alerts/frontend"),
+        cache_headers=False,
+    )
     add_extra_js_url(
         hass,
-        "/static/custom_components/ntfy_alerts/frontend/ntfy-alerts-card.js",
+        "/ntfy_alerts_card/ntfy-alerts-card.js",
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

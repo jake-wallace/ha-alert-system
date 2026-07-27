@@ -1,4 +1,6 @@
-import { LitElement, html, css } from "https://unpkg.com/lit@2.7.0?module";
+const LitElement = Object.getPrototypeOf(customElements.get("hui-view"));
+const html = LitElement.prototype.html;
+const css = LitElement.prototype.css;
 
 class NtfyAlertsCard extends LitElement {
   static get properties() {
