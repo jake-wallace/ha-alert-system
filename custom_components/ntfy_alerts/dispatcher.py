@@ -28,6 +28,7 @@ from .const import (
     ATTR_VALUE_TEMPLATE,
     CONF_AUTH_TOKEN,
     CONF_NTFY_BASE_TOPIC,
+    CONF_NTFY_SERVER_URL,
     CONF_USERS,
     COOLDOWN_STORAGE_KEY,
     DEFAULT_COOLDOWN,
@@ -70,6 +71,7 @@ def _get_subscriber_topics(
 
 async def _send_ntfy_notification(
     session: aiohttp.ClientSession,
+    server_url: str,
     topic: str,
     title: str,
     message: str,
@@ -89,7 +91,7 @@ async def _send_ntfy_notification(
         headers["Authorization"] = f"Bearer {auth_token}"
     try:
         async with session.post(
-            NTFY_API_URL,
+            server_url,
             json=payload,
             headers=headers,
             timeout=aiohttp.ClientTimeout(total=10),
@@ -135,6 +137,7 @@ async def async_handle_state_change(
     if not config_data:
         return
     auth_token = config_data.get(CONF_AUTH_TOKEN, "")
+    server_url = config_data.get(CONF_NTFY_SERVER_URL, NTFY_API_URL)
     rules = await async_load_rules(hass)
     matched_rules = [
         rule
@@ -171,7 +174,7 @@ async def async_handle_state_change(
             results = await asyncio.gather(
                 *[
                     _send_ntfy_notification(
-                        session, topic, rendered_title, rendered_body,
+                        session, server_url, topic, rendered_title, rendered_body,
                         priority, tags, auth_token,
                     )
                     for topic in topics

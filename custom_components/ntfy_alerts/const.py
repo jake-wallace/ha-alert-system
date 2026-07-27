@@ -3,6 +3,7 @@ STORAGE_KEY = f"{DOMAIN}.rules"
 STORAGE_VERSION = 1
 CONF_NTFY_BASE_TOPIC = "ntfy_base_topic"
 CONF_AUTH_TOKEN = "auth_token"
+CONF_NTFY_SERVER_URL = "ntfy_server_url"
 CONF_USERS = "users"
 ATTR_RULE_ID = "rule_id"
 ATTR_ENTITY_ID = "entity_id"
