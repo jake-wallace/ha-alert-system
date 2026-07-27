@@ -10,13 +10,14 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 
-from .const import DOMAIN, CONF_NTFY_BASE_TOPIC, CONF_AUTH_TOKEN, CONF_USERS
+from .const import DOMAIN, CONF_NTFY_BASE_TOPIC, CONF_AUTH_TOKEN, CONF_NTFY_SERVER_URL, CONF_USERS
 
 _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NTFY_BASE_TOPIC, default="ha_alerts"): str,
+        vol.Optional(CONF_NTFY_SERVER_URL, default="https://ntfy.sh"): str,
         vol.Optional(CONF_AUTH_TOKEN, default=""): str,
     }
 )
@@ -53,14 +54,22 @@ class NtfyAlertsOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        current = self.config_entry.data.get(CONF_USERS, {})
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Optional("add_user_name"): str,
-                    vol.Optional("add_user_topic"): str,
+                    vol.Optional(
+                        CONF_NTFY_SERVER_URL,
+                        default=self.config_entry.data.get(CONF_NTFY_SERVER_URL, "https://ntfy.sh"),
+                    ): str,
+                    vol.Optional(
+                        CONF_NTFY_BASE_TOPIC,
+                        default=self.config_entry.data.get(CONF_NTFY_BASE_TOPIC, "ha_alerts"),
+                    ): str,
+                    vol.Optional(
+                        CONF_AUTH_TOKEN,
+                        default=self.config_entry.data.get(CONF_AUTH_TOKEN, ""),
+                    ): str,
                 }
             ),
-            description_placeholders={"current_users": str(current)},
         )

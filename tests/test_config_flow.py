@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock
 import pytest
 
-from custom_components.ntfy_alerts.const import DOMAIN, CONF_NTFY_BASE_TOPIC
+from custom_components.ntfy_alerts.const import DOMAIN, CONF_NTFY_BASE_TOPIC, CONF_NTFY_SERVER_URL
 from custom_components.ntfy_alerts.config_flow import NtfyAlertsConfigFlow
 
 
@@ -25,8 +25,10 @@ async def test_config_flow_create_entry():
     flow.hass.config_entries = MagicMock()
     result = await flow.async_step_user(user_input={
         CONF_NTFY_BASE_TOPIC: "ha_test",
+        CONF_NTFY_SERVER_URL: "https://ntfy.sh",
         "auth_token": "",
     })
     assert result["type"] == "create_entry"
     assert result["data"][CONF_NTFY_BASE_TOPIC] == "ha_test"
+    assert result["data"][CONF_NTFY_SERVER_URL] == "https://ntfy.sh"
     assert result["data"]["users"] == {}
