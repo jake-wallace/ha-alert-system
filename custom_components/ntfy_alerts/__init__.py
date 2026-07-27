@@ -215,6 +215,8 @@ def _async_remove_user(
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     config = dict(entry.data)
+    if entry.options:
+        config.update(entry.options)
     hass.data[DOMAIN] = {
         "config": config,
         "entry_id": entry.entry_id,
