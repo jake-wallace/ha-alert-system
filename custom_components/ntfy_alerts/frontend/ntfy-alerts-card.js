@@ -1,7 +1,4 @@
-customElements.whenDefined("hui-view").then(() => {
-const LitElement = Object.getPrototypeOf(customElements.get("hui-view"));
-const html = LitElement.prototype.html;
-const css = LitElement.prototype.css;
+import { LitElement, html, css } from "lit";
 
 class NtfyEntityPicker extends LitElement {
   static get properties() {
@@ -749,5 +746,4 @@ window.customCards.push({
   type: "ntfy-alerts-card",
   name: "ntfy Alerts",
   description: "Manage ntfy alert rules for entity state changes",
-});
 });
