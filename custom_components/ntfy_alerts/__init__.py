@@ -24,7 +24,6 @@ from .const import (
     ATTR_MESSAGE,
     ATTR_NAME,
     ATTR_SUBSCRIBERS,
-    CONF_NTFY_SERVER_URL,
     DOMAIN,
     EVENT_LISTENER_KEY,
 )
