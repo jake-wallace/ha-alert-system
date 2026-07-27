@@ -564,6 +564,14 @@ class NtfyAlertsCard extends LitElement {
     this._showUserManager = false;
   }
 
+  setConfig(config) {
+    this.config = config;
+  }
+
+  getCardSize() {
+    return 3;
+  }
+
   connectedCallback() {
     super.connectedCallback();
     this._loadRules();
