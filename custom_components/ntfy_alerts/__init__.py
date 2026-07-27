@@ -211,21 +211,6 @@ def _async_remove_user(
     connection.send_result(msg["id"], {"success": True})
 
 
-@callback
-def _async_state_changed_listener(
-    hass: HomeAssistant,
-    event: Event[EventStateChangedData],
-) -> None:
-    entity_id = event.data.get("entity_id")
-    old_state = event.data.get("old_state")
-    new_state = event.data.get("new_state")
-    if new_state is None:
-        return
-    hass.async_create_task(
-        async_handle_state_change(hass, old_state, new_state, entity_id)
-    )
-
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     config = dict(entry.data)
@@ -234,9 +219,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "entry_id": entry.entry_id,
     }
 
+    @callback
+    def _async_state_changed_listener(event: Event[EventStateChangedData]) -> None:
+        entity_id = event.data.get("entity_id")
+        old_state = event.data.get("old_state")
+        new_state = event.data.get("new_state")
+        if new_state is None:
+            return
+        hass.async_create_task(
+            async_handle_state_change(hass, old_state, new_state, entity_id)
+        )
+
     listener = hass.bus.async_listen(
         EVENT_STATE_CHANGED,
-        lambda event: _async_state_changed_listener(hass, event),
+        _async_state_changed_listener,
     )
     hass.data[DOMAIN][EVENT_LISTENER_KEY] = listener
 
