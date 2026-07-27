@@ -1,3 +1,4 @@
+customElements.whenDefined("hui-view").then(() => {
 const LitElement = Object.getPrototypeOf(customElements.get("hui-view"));
 const html = LitElement.prototype.html;
 const css = LitElement.prototype.css;
@@ -748,4 +749,5 @@ window.customCards.push({
   type: "ntfy-alerts-card",
   name: "ntfy Alerts",
   description: "Manage ntfy alert rules for entity state changes",
+});
 });
