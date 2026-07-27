@@ -1,0 +1,4 @@
+reload_rules:
+  name: Reload rules
+  description: Reload all notification rules from storage
+  fields: {}
