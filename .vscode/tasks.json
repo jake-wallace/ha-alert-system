@@ -1,0 +1,42 @@
+{
+  "version": "2.0.0",
+  "presentation": {
+    "echo": true,
+    "reveal": "always",
+    "focus": false,
+    "panel": "dedicated"
+  },
+  "tasks": [
+    {
+      "label": "Dev: Start Server",
+      "type": "shell",
+      "command": "python3 ${workspaceFolder}/scripts/dev_frontend.py",
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": [{ "regexp": "." }],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "ntfy Alerts dev server",
+          "endsPattern": "Shutting down"
+        }
+      },
+      "group": "build"
+    },
+    {
+      "label": "Dev: Open Test Panel",
+      "type": "shell",
+      "command": "open http://localhost:8000/test_panel.html",
+      "problemMatcher": []
+    },
+    {
+      "label": "Dev: Launch Environment",
+      "dependsOn": ["Dev: Start Server", "Dev: Open Test Panel"],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    }
+  ]
+}
