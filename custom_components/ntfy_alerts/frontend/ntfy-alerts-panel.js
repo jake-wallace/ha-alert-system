@@ -463,13 +463,14 @@ class NtfyAlertsPanel extends LitElement {
     } catch (e) {
       console.error("Failed to load ntfy rules:", e);
       this.rules = [];
-      if (e.code === "unknown_command" && this._retryCount < 5) {
+      const code = e?.code || "";
+      if (code === "unknown_command" && this._retryCount < 5) {
         this._retryCount++;
         const delay = Math.min(1000 * 2 ** (this._retryCount - 1), 16000);
         this._retryTimer = setTimeout(() => this._loadRules(), delay);
-      } else {
-        this._loadError = true;
+        return;
       }
+      this._loadError = true;
     }
     this.loading = false;
   }
@@ -505,24 +506,19 @@ class NtfyAlertsPanel extends LitElement {
 
   render() {
     return html`
-      <ha-app-layout>
-        <app-header fixed slot="header">
-          <app-toolbar>
-            <ha-menu-button .hass=${this.hass}></ha-menu-button>
-            <div main-title>ntfy Alerts</div>
-            <span flex></span>
-            <ha-icon-button
-              icon="mdi:account-group"
-              @click=${() => (this._showUserManager = true)}
-              label="Users"
-            ></ha-icon-button>
-            <ha-icon-button
-              icon="mdi:plus"
-              @click=${() => (this._showNewRuleDialog = true)}
-              label="New Rule"
-            ></ha-icon-button>
-          </app-toolbar>
-        </app-header>
+      <div class="panel">
+        <div class="toolbar">
+          <div class="toolbar-title">ntfy Alerts</div>
+          <div class="toolbar-actions">
+            <ha-button outlined @click=${() => (this._showUserManager = true)}>
+              Users
+            </ha-button>
+            <ha-button unelevated @click=${() => (this._showNewRuleDialog = true)}>
+              ＋ New Rule
+            </ha-button>
+          </div>
+        </div>
+
         <div class="content">
           ${this.loading
             ? html`<div class="center"><ha-circular-progress active></ha-circular-progress></div>`
@@ -553,11 +549,12 @@ class NtfyAlertsPanel extends LitElement {
                                   @change=${(e) =>
                                     this._toggleRule(rule.rule_id, e.target.checked)}
                                 ></ha-switch>
-                                <ha-icon-button
-                                  icon="mdi:delete"
+                                <ha-button
                                   @click=${() => this._deleteRule(rule.rule_id)}
                                   class="delete-btn"
-                                ></ha-icon-button>
+                                >
+                                  ✕
+                                </ha-button>
                               </div>
                             </div>
                           `
@@ -565,7 +562,7 @@ class NtfyAlertsPanel extends LitElement {
                   </div>
                 `}
         </div>
-      </ha-app-layout>
+      </div>
 
       ${this._showNewRuleDialog
         ? html`
@@ -596,54 +593,81 @@ class NtfyAlertsPanel extends LitElement {
     return css`
       :host {
         display: block;
-        height: 100%;
       }
-      ha-app-layout {
-        height: 100%;
+      .panel {
+        padding: 0;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 24px;
+        border-bottom: 1px solid var(--divider-color);
+        background: var(--card-background-color, #fff);
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      .toolbar-title {
+        font-size: 20px;
+        font-weight: 500;
+      }
+      .toolbar-actions {
+        display: flex;
+        gap: 8px;
       }
       .content {
-        padding: 16px;
+        padding: 24px;
+        max-width: 900px;
+        margin: 0 auto;
       }
       .center {
         display: flex;
         justify-content: center;
-        padding: 48px;
+        padding: 64px;
       }
       .rules-list {
-        max-width: 800px;
+        width: 100%;
       }
       .rule-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 12px 0;
+        padding: 16px 0;
         border-bottom: 1px solid var(--divider-color);
       }
       .rule-row:last-child {
         border-bottom: none;
       }
       .rule-name {
+        font-size: 16px;
         font-weight: 500;
+        margin-bottom: 4px;
       }
       .rule-entity {
-        font-size: 12px;
+        font-size: 13px;
         color: var(--secondary-text-color);
+        margin-bottom: 2px;
       }
       .rule-subscribers {
-        font-size: 12px;
+        font-size: 13px;
         color: var(--secondary-text-color);
       }
       .rule-actions {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 12px;
+        flex-shrink: 0;
       }
       .delete-btn {
         color: var(--error-color);
+        min-width: 0;
+        padding: 0 8px;
       }
       .empty, .error {
         text-align: center;
-        padding: 48px;
+        padding: 64px;
+        font-size: 16px;
       }
       .empty {
         color: var(--secondary-text-color);
