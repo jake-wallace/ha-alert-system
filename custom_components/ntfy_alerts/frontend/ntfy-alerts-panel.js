@@ -17,6 +17,11 @@ class NtfyAlertsPanel extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    this._retryCount = 0;
+    if (this._retryTimer) {
+      clearTimeout(this._retryTimer);
+      this._retryTimer = null;
+    }
     this._loadRules();
   }
 
@@ -30,84 +35,89 @@ class NtfyAlertsPanel extends HTMLElement {
   render() {
     this.innerHTML = `
       <style>
-        .toolbar {
+        .ntfy-toolbar {
           display: flex;
           align-items: center;
           justify-content: space-between;
           padding: 12px 24px;
           border-bottom: 1px solid var(--divider-color);
           background: var(--card-background-color, #fff);
-          position: sticky;
-          top: 0;
-          z-index: 1;
         }
-        .toolbar-title {
+        .ntfy-toolbar-title {
           font-size: 20px;
           font-weight: 500;
         }
-        .toolbar-actions {
+        .ntfy-toolbar-actions {
           display: flex;
           gap: 8px;
         }
-        .content {
+        .ntfy-content {
           padding: 24px;
           max-width: 900px;
           margin: 0 auto;
         }
-        .center {
+        .ntfy-center {
           display: flex;
           justify-content: center;
           padding: 64px;
         }
-        .rules-list {
-          width: 100%;
+        .ntfy-spinner {
+          width: 40px;
+          height: 40px;
+          border: 4px solid var(--divider-color, #ddd);
+          border-top-color: var(--primary-color, #03a9f4);
+          border-radius: 50%;
+          animation: ntfy-spin 0.8s linear infinite;
         }
-        .rule-row {
+        @keyframes ntfy-spin {
+          to { transform: rotate(360deg); }
+        }
+        .ntfy-rule-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
           padding: 16px 0;
           border-bottom: 1px solid var(--divider-color);
         }
-        .rule-row:last-child {
+        .ntfy-rule-row:last-child {
           border-bottom: none;
         }
-        .rule-info {
+        .ntfy-rule-info {
           flex: 1;
           min-width: 0;
         }
-        .rule-name {
+        .ntfy-rule-name {
           font-size: 16px;
           font-weight: 500;
           margin-bottom: 4px;
         }
-        .rule-entity {
+        .ntfy-rule-entity {
           font-size: 13px;
           color: var(--secondary-text-color);
           margin-bottom: 2px;
         }
-        .rule-subscribers {
+        .ntfy-rule-subscribers {
           font-size: 13px;
           color: var(--secondary-text-color);
         }
-        .rule-actions {
+        .ntfy-rule-actions {
           display: flex;
           align-items: center;
           gap: 12px;
           flex-shrink: 0;
           margin-left: 16px;
         }
-        .rule-toggle {
+        .ntfy-rule-toggle {
           position: relative;
           width: 36px;
           height: 20px;
         }
-        .rule-toggle input {
+        .ntfy-rule-toggle input {
           opacity: 0;
           width: 0;
           height: 0;
         }
-        .rule-toggle .slider {
+        .ntfy-rule-toggle .ntfy-slider {
           position: absolute;
           cursor: pointer;
           top: 0; left: 0; right: 0; bottom: 0;
@@ -115,7 +125,7 @@ class NtfyAlertsPanel extends HTMLElement {
           border-radius: 20px;
           transition: 0.3s;
         }
-        .rule-toggle .slider:before {
+        .ntfy-rule-toggle .ntfy-slider:before {
           content: "";
           position: absolute;
           height: 16px; width: 16px;
@@ -124,13 +134,13 @@ class NtfyAlertsPanel extends HTMLElement {
           border-radius: 50%;
           transition: 0.3s;
         }
-        .rule-toggle input:checked + .slider {
+        .ntfy-rule-toggle input:checked + .ntfy-slider {
           background: var(--primary-color, #03a9f4);
         }
-        .rule-toggle input:checked + .slider:before {
+        .ntfy-rule-toggle input:checked + .ntfy-slider:before {
           transform: translateX(16px);
         }
-        .delete-btn {
+        .ntfy-delete-btn {
           color: var(--error-color, #db4437);
           background: none;
           border: none;
@@ -139,21 +149,21 @@ class NtfyAlertsPanel extends HTMLElement {
           padding: 4px 8px;
           border-radius: 4px;
         }
-        .delete-btn:hover {
+        .ntfy-delete-btn:hover {
           background: var(--secondary-color, rgba(0,0,0,0.05));
         }
-        .empty, .error {
+        .ntfy-empty, .ntfy-error {
           text-align: center;
           padding: 64px;
           font-size: 16px;
         }
-        .empty {
+        .ntfy-empty {
           color: var(--secondary-text-color);
         }
-        .error {
+        .ntfy-error {
           color: var(--error-color, #db4437);
         }
-        button {
+        .ntfy-btn {
           font-family: var(--paper-font-common-base_-_font-family, inherit);
           font-size: 14px;
           font-weight: 500;
@@ -162,20 +172,20 @@ class NtfyAlertsPanel extends HTMLElement {
           cursor: pointer;
           border: none;
         }
-        button.primary {
+        .ntfy-btn.ntfy-primary {
           background: var(--primary-color, #03a9f4);
           color: var(--primary-text-color, #fff);
         }
-        button.secondary {
+        .ntfy-btn.ntfy-secondary {
           background: transparent;
           border: 1px solid var(--primary-color, #03a9f4);
           color: var(--primary-color, #03a9f4);
         }
-        button.unelevated {
+        .ntfy-btn.ntfy-unelevated {
           background: var(--primary-color, #03a9f4);
           color: var(--primary-text-color, #fff);
         }
-        .dialog-overlay {
+        .ntfy-dialog-overlay {
           position: fixed;
           top: 0; left: 0; right: 0; bottom: 0;
           background: rgba(0,0,0,0.3);
@@ -184,7 +194,7 @@ class NtfyAlertsPanel extends HTMLElement {
           justify-content: center;
           z-index: 1000;
         }
-        .dialog {
+        .ntfy-dialog {
           background: var(--card-background-color, #fff);
           border-radius: 16px;
           padding: 24px;
@@ -194,31 +204,31 @@ class NtfyAlertsPanel extends HTMLElement {
           overflow-y: auto;
           box-shadow: 0 8px 32px rgba(0,0,0,0.2);
         }
-        .dialog h2 {
+        .ntfy-dialog h2 {
           margin: 0 0 16px 0;
           font-size: 20px;
           font-weight: 500;
         }
-        .dialog .form {
+        .ntfy-dialog .ntfy-form {
           display: flex;
           flex-direction: column;
           gap: 12px;
         }
-        .dialog .field-row {
+        .ntfy-dialog .ntfy-field-row {
           display: flex;
           gap: 8px;
         }
-        .dialog .field-row > * {
+        .ntfy-dialog .ntfy-field-row > * {
           flex: 1;
         }
-        .dialog label {
+        .ntfy-dialog label {
           display: flex;
           flex-direction: column;
           gap: 4px;
           font-size: 12px;
           color: var(--secondary-text-color);
         }
-        .dialog input, .dialog textarea, .dialog select {
+        .ntfy-dialog input, .ntfy-dialog textarea, .ntfy-dialog select {
           font-family: var(--paper-font-common-base_-_font-family, inherit);
           font-size: 14px;
           padding: 8px 12px;
@@ -229,20 +239,20 @@ class NtfyAlertsPanel extends HTMLElement {
           width: 100%;
           box-sizing: border-box;
         }
-        .dialog input:focus, .dialog textarea:focus {
+        .ntfy-dialog input:focus, .ntfy-dialog textarea:focus {
           outline: none;
           border-color: var(--primary-color, #03a9f4);
         }
-        .dialog textarea {
+        .ntfy-dialog textarea {
           min-height: 60px;
           resize: vertical;
         }
-        .dialog .checkbox-group {
+        .ntfy-dialog .ntfy-checkbox-group {
           display: flex;
           flex-direction: column;
           gap: 4px;
         }
-        .dialog .checkbox-label {
+        .ntfy-dialog .ntfy-checkbox-label {
           display: flex;
           align-items: center;
           gap: 8px;
@@ -250,11 +260,11 @@ class NtfyAlertsPanel extends HTMLElement {
           font-size: 14px;
           color: var(--primary-text-color);
         }
-        .dialog .checkbox-label input[type="checkbox"] {
+        .ntfy-dialog .ntfy-checkbox-label input[type="checkbox"] {
           width: auto;
           cursor: pointer;
         }
-        .dialog .section-label {
+        .ntfy-dialog .ntfy-section-label {
           font-weight: 500;
           margin-top: 8px;
           border-top: 1px solid var(--divider-color);
@@ -262,18 +272,18 @@ class NtfyAlertsPanel extends HTMLElement {
           font-size: 14px;
           color: var(--primary-text-color);
         }
-        .dialog .dialog-actions {
+        .ntfy-dialog .ntfy-dialog-actions {
           display: flex;
           justify-content: flex-end;
           gap: 8px;
           margin-top: 16px;
         }
-        .user-list {
+        .ntfy-user-list {
           display: flex;
           flex-direction: column;
           gap: 8px;
         }
-        .user-row {
+        .ntfy-user-row {
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -281,34 +291,26 @@ class NtfyAlertsPanel extends HTMLElement {
           border: 1px solid var(--divider-color);
           border-radius: 8px;
         }
-        .user-info {
+        .ntfy-user-info {
           display: flex;
           flex-direction: column;
         }
-        .user-name {
+        .ntfy-user-name {
           font-weight: 500;
         }
-        .user-topic {
+        .ntfy-user-topic {
           font-size: 13px;
           color: var(--secondary-text-color);
         }
-        .section-label {
-          font-weight: 500;
-          margin-top: 8px;
-          border-top: 1px solid var(--divider-color);
-          padding-top: 8px;
-          font-size: 14px;
-          color: var(--primary-text-color);
-        }
       </style>
-      <div class="toolbar">
-        <div class="toolbar-title">ntfy Alerts</div>
-        <div class="toolbar-actions">
-          <button class="secondary" id="users-btn">Users</button>
-          <button class="unelevated" id="new-rule-btn">＋ New Rule</button>
+      <div class="ntfy-toolbar">
+        <div class="ntfy-toolbar-title">ntfy Alerts</div>
+        <div class="ntfy-toolbar-actions">
+          <button class="ntfy-btn ntfy-secondary" id="users-btn">Users</button>
+          <button class="ntfy-btn ntfy-unelevated" id="new-rule-btn">＋ New Rule</button>
         </div>
       </div>
-      <div class="content" id="content"></div>
+      <div class="ntfy-content" id="content"></div>
     `;
 
     this.querySelector("#users-btn").onclick = () => this._openUserManager();
@@ -317,31 +319,31 @@ class NtfyAlertsPanel extends HTMLElement {
   }
 
   _renderLoading() {
-    return '<div class="center"><ha-circular-progress active></ha-circular-progress></div>';
+    return '<div class="ntfy-center"><div class="ntfy-spinner"></div></div>';
   }
 
   _renderError() {
-    return '<div class="error">Unable to connect to the ntfy Alerts integration. Make sure it is installed and configured.</div>';
+    return '<div class="ntfy-error">Unable to connect to the ntfy Alerts integration. Make sure it is installed and configured.</div>';
   }
 
   _renderEmpty() {
-    return '<div class="empty">No rules yet. Create one!</div>';
+    return '<div class="ntfy-empty">No rules yet. Create one!</div>';
   }
 
   _renderRules() {
     return this._rules.map((rule) => `
-      <div class="rule-row">
-        <div class="rule-info">
-          <div class="rule-name">${this._escapeHtml(rule.name)}</div>
-          <div class="rule-entity">${this._escapeHtml(rule.entity_id)}</div>
-          <div class="rule-subscribers">→ ${this._escapeHtml(this._getSubscriberNames(rule.subscribers || []).join(", "))}</div>
+      <div class="ntfy-rule-row">
+        <div class="ntfy-rule-info">
+          <div class="ntfy-rule-name">${this._escapeHtml(rule.name)}</div>
+          <div class="ntfy-rule-entity">${this._escapeHtml(rule.entity_id)}</div>
+          <div class="ntfy-rule-subscribers">→ ${this._escapeHtml(this._getSubscriberNames(rule.subscribers || []).join(", "))}</div>
         </div>
-        <div class="rule-actions">
-          <label class="rule-toggle">
+        <div class="ntfy-rule-actions">
+          <label class="ntfy-rule-toggle">
             <input type="checkbox" ${rule.enabled !== false ? "checked" : ""} data-rule-id="${this._escapeHtml(rule.rule_id)}">
-            <span class="slider"></span>
+            <span class="ntfy-slider"></span>
           </label>
-          <button class="delete-btn" data-rule-id="${this._escapeHtml(rule.rule_id)}">✕</button>
+          <button class="ntfy-delete-btn" data-rule-id="${this._escapeHtml(rule.rule_id)}">✕</button>
         </div>
       </div>
     `).join("");
@@ -364,12 +366,12 @@ class NtfyAlertsPanel extends HTMLElement {
       content.innerHTML = this._renderEmpty();
     } else {
       content.innerHTML = this._renderRules();
-      content.querySelectorAll('.rule-toggle input[type="checkbox"]').forEach((cb) => {
+      content.querySelectorAll('.ntfy-rule-toggle input[type="checkbox"]').forEach((cb) => {
         cb.onchange = () => {
           this._toggleRule(cb.dataset.ruleId, cb.checked);
         };
       });
-      content.querySelectorAll(".delete-btn").forEach((btn) => {
+      content.querySelectorAll(".ntfy-delete-btn").forEach((btn) => {
         btn.onclick = () => this._deleteRule(btn.dataset.ruleId);
       });
     }
@@ -382,13 +384,21 @@ class NtfyAlertsPanel extends HTMLElement {
     });
   }
 
+  _ws(msg) {
+    if (this._hass.callWS) return this._ws(msg);
+    if (this._hass.connection && this._hass.connection.sendMessagePromise) {
+      return this._hass.connection.sendMessagePromise(msg);
+    }
+    throw new Error("WebSocket not available");
+  }
+
   async _loadRules() {
     if (!this._hass) return;
     this._loading = true;
     this._loadError = false;
     this._renderContent();
     try {
-      const result = await this._hass.callWS({
+      const result = await this._ws({
         type: "ntfy_alerts/get_rules",
       });
       this._rules = result.rules || [];
@@ -398,8 +408,7 @@ class NtfyAlertsPanel extends HTMLElement {
       this._loading = false;
       this._renderContent();
     } catch (e) {
-      const code = e?.code || e;
-      console.error("Failed to load ntfy rules:", { code, error: e });
+      console.error("Failed to load ntfy rules:", e);
       this._rules = [];
       if (this._retryCount < 10) {
         this._retryCount++;
@@ -415,7 +424,7 @@ class NtfyAlertsPanel extends HTMLElement {
 
   _toggleRule(ruleId, enabled) {
     if (!this._hass) return;
-    this._hass.callWS({
+    this._ws({
       type: "ntfy_alerts/update_rule",
       rule_id: ruleId,
       updates: { enabled },
@@ -426,7 +435,7 @@ class NtfyAlertsPanel extends HTMLElement {
 
   async _deleteRule(ruleId) {
     if (!this._hass) return;
-    await this._hass.callWS({
+    await this._ws({
       type: "ntfy_alerts/delete_rule",
       rule_id: ruleId,
     });
@@ -453,11 +462,11 @@ class NtfyAlertsPanel extends HTMLElement {
 
   _createDialog(type) {
     const overlay = document.createElement("div");
-    overlay.className = "dialog-overlay";
+    overlay.className = "ntfy-dialog-overlay";
     overlay.onclick = (e) => {
       if (e.target === overlay) this._closeDialog();
     };
-    document.body.appendChild(overlay);
+    this.appendChild(overlay);
 
     if (type === "users") {
       this._renderUserManager(overlay);
@@ -470,7 +479,7 @@ class NtfyAlertsPanel extends HTMLElement {
 
   _renderRuleEditor(overlay) {
     const dialog = document.createElement("div");
-    dialog.className = "dialog";
+    dialog.className = "ntfy-dialog";
 
     let name = "", entityId = "", fromState = "", toState = "";
     let subscribers = [];
@@ -478,26 +487,26 @@ class NtfyAlertsPanel extends HTMLElement {
 
     dialog.innerHTML = `
       <h2>New Rule</h2>
-      <div class="form">
+      <div class="ntfy-form">
         <label>Rule Name <input type="text" id="rule-name" value="" required></label>
         <label>Entity ID <input type="text" id="rule-entity" value="" placeholder="e.g. sensor.temperature" required></label>
-        <div class="field-row">
+        <div class="ntfy-field-row">
           <label>From State (optional) <input type="text" id="rule-from" value=""></label>
           <label>To State (optional) <input type="text" id="rule-to" value=""></label>
         </div>
-        <div class="section-label">Subscribers</div>
-        <div class="checkbox-group" id="subscribers-list"></div>
-        <div class="section-label">Message</div>
+        <div class="ntfy-section-label">Subscribers</div>
+        <div class="ntfy-checkbox-group" id="subscribers-list"></div>
+        <div class="ntfy-section-label">Message</div>
         <label>Title (supports templates) <input type="text" id="rule-title" value=""></label>
         <label>Body (supports templates) <textarea id="rule-body"></textarea></label>
-        <div class="section-label">Options</div>
+        <div class="ntfy-section-label">Options</div>
         <label>Priority (1-5) <input type="range" id="rule-priority" min="1" max="5" value="3"></label>
         <label>Tags (comma separated) <input type="text" id="rule-tags" value=""></label>
         <label>Cooldown (seconds) <input type="number" id="rule-cooldown" value="60"></label>
       </div>
-      <div class="dialog-actions">
-        <button class="secondary" id="cancel-btn">Cancel</button>
-        <button class="primary" id="save-btn" disabled>Save</button>
+      <div class="ntfy-dialog-actions">
+        <button class="ntfy-btn ntfy-secondary" id="cancel-btn">Cancel</button>
+        <button class="ntfy-btn ntfy-primary" id="save-btn" disabled>Save</button>
       </div>
     `;
 
@@ -507,7 +516,7 @@ class NtfyAlertsPanel extends HTMLElement {
     const subsList = dialog.querySelector("#subscribers-list");
     Object.entries(this._users).forEach(([userId, user]) => {
       const label = document.createElement("label");
-      label.className = "checkbox-label";
+      label.className = "ntfy-checkbox-label";
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.checked = subscribers.includes(userId);
@@ -544,7 +553,7 @@ class NtfyAlertsPanel extends HTMLElement {
       saveBtn.disabled = true;
       saveBtn.textContent = "Saving\u2026";
       try {
-        await this._hass.callWS({
+        await this._ws({
           type: "ntfy_alerts/save_rule",
           rule: {
             name: nameInput.value,
@@ -578,21 +587,21 @@ class NtfyAlertsPanel extends HTMLElement {
 
   _renderUserManager(overlay) {
     const dialog = document.createElement("div");
-    dialog.className = "dialog";
+    dialog.className = "ntfy-dialog";
 
     let newName = "", newTopic = "";
 
     dialog.innerHTML = `
       <h2>Manage Users</h2>
-      <div class="user-list" id="user-list"></div>
-      <div class="section-label">Add User</div>
-      <div class="field-row">
+      <div class="ntfy-user-list" id="user-list"></div>
+      <div class="ntfy-section-label">Add User</div>
+      <div class="ntfy-field-row">
         <label>Name <input type="text" id="new-name" value=""></label>
         <label>Topic <input type="text" id="new-topic" value=""></label>
-        <button class="primary" id="add-btn" style="margin-top:18px" disabled>Add</button>
+        <button class="ntfy-btn ntfy-primary" id="add-btn" style="margin-top:18px" disabled>Add</button>
       </div>
-      <div class="dialog-actions">
-        <button class="secondary" id="close-btn">Close</button>
+      <div class="ntfy-dialog-actions">
+        <button class="ntfy-btn ntfy-secondary" id="close-btn">Close</button>
       </div>
     `;
 
@@ -601,15 +610,15 @@ class NtfyAlertsPanel extends HTMLElement {
     const renderUsers = () => {
       const userList = dialog.querySelector("#user-list");
       userList.innerHTML = Object.entries(this._users).map(([userId, user]) => `
-        <div class="user-row">
-          <div class="user-info">
-            <span class="user-name">${this._escapeHtml(user.name)}</span>
-            <span class="user-topic">${this._escapeHtml(user.topic)}</span>
+        <div class="ntfy-user-row">
+          <div class="ntfy-user-info">
+            <span class="ntfy-user-name">${this._escapeHtml(user.name)}</span>
+            <span class="ntfy-user-topic">${this._escapeHtml(user.topic)}</span>
           </div>
-          <button class="delete-btn" data-user-id="${this._escapeHtml(userId)}">✕</button>
+          <button class="ntfy-delete-btn" data-user-id="${this._escapeHtml(userId)}">✕</button>
         </div>
       `).join("");
-      userList.querySelectorAll(".delete-btn").forEach((btn) => {
+      userList.querySelectorAll(".ntfy-delete-btn").forEach((btn) => {
         btn.onclick = () => this._removeUser(btn.dataset.userId);
       });
     };
@@ -634,7 +643,7 @@ class NtfyAlertsPanel extends HTMLElement {
       topicInput.value = "";
       updateAddBtn();
       try {
-        const result = await this._hass.callWS({
+        const result = await this._ws({
           type: "ntfy_alerts/add_user",
           name,
           topic,
@@ -652,7 +661,7 @@ class NtfyAlertsPanel extends HTMLElement {
 
   async _removeUser(userId) {
     try {
-      await this._hass.callWS({
+      await this._ws({
         type: "ntfy_alerts/remove_user",
         user_id: userId,
       });
