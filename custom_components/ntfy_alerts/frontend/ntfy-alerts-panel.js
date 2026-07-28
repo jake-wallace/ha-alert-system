@@ -100,7 +100,7 @@ class NtfyRuleEditor extends LitElement {
           rule: ruleData,
         });
       }
-      this.dispatchEvent(new CustomEvent("close"));
+      this.dispatchEvent(new CustomEvent("dialog-closed"));
     } catch (e) {
       alert("Failed to save rule: " + e.message);
     }
@@ -111,7 +111,7 @@ class NtfyRuleEditor extends LitElement {
     return html`
       <ha-dialog
         open
-        @closed=${() => this.dispatchEvent(new CustomEvent("close"))}
+        @closed=${() => this.dispatchEvent(new CustomEvent("dialog-closed"))}
         .heading=${this._editMode ? "Edit Rule" : "New Rule"}
       >
         <div class="form">
@@ -203,7 +203,7 @@ class NtfyRuleEditor extends LitElement {
         </ha-button>
         <ha-button
           slot="secondaryAction"
-          @click=${() => this.dispatchEvent(new CustomEvent("close"))}
+          @click=${() => this.dispatchEvent(new CustomEvent("dialog-closed"))}
         >
           Cancel
         </ha-button>
@@ -309,7 +309,7 @@ class NtfyUserManager extends LitElement {
     return html`
       <ha-dialog
         open
-        @closed=${() => this.dispatchEvent(new CustomEvent("close"))}
+        @closed=${() => this.dispatchEvent(new CustomEvent("dialog-closed"))}
         .heading=${"User ntfy Topics"}
       >
         <div class="user-list">
@@ -351,7 +351,7 @@ class NtfyUserManager extends LitElement {
 
         <ha-button
           slot="primaryAction"
-          @click=${() => this.dispatchEvent(new CustomEvent("close"))}
+          @click=${() => this.dispatchEvent(new CustomEvent("dialog-closed"))}
         >
           Done
         </ha-button>
@@ -404,11 +404,10 @@ class NtfyUserManager extends LitElement {
 
 customElements.define("ntfy-user-manager", NtfyUserManager);
 
-class NtfyAlertsCard extends LitElement {
+class NtfyAlertsPanel extends LitElement {
   static get properties() {
     return {
       hass: { type: Object },
-      config: { type: Object },
       rules: { type: Array },
       users: { type: Object },
       loading: { type: Boolean },
@@ -424,14 +423,6 @@ class NtfyAlertsCard extends LitElement {
     this.loading = true;
     this._showNewRuleDialog = false;
     this._showUserManager = false;
-  }
-
-  setConfig(config) {
-    this.config = config;
-  }
-
-  getCardSize() {
-    return 3;
   }
 
   connectedCallback() {
@@ -507,110 +498,119 @@ class NtfyAlertsCard extends LitElement {
     return (userId) => this.users[userId]?.name || userId;
   }
 
-  _handleUserManagerClose() {
+  _handleUserManagerDialogClosed() {
     this._showUserManager = false;
     this._loadRules();
   }
 
   render() {
     return html`
-      <ha-card>
-        <div class="card-header">
-          <span>ntfy Alerts</span>
-          <div class="header-actions">
-            <ha-button @click=${() => (this._showUserManager = true)}>
-              👥 Users
-            </ha-button>
-            <ha-button @click=${() => (this._showNewRuleDialog = true)}>
-              ＋ New Rule
-            </ha-button>
-          </div>
-        </div>
-
-        ${this.loading
-          ? html`<ha-circular-progress active></ha-circular-progress>`
-          : this._loadError
-            ? html`<div class="error">
-                Unable to connect to the ntfy Alerts integration.
-                Make sure it is installed and configured.
-              </div>`
-            : html`
-                <div class="rules-list">
-                  ${this.rules.length === 0
-                    ? html`<div class="empty">No rules yet. Create one!</div>`
-                    : this.rules.map(
-                        (rule) => html`
-                          <div class="rule-row">
-                            <div class="rule-info">
-                              <div class="rule-name">${rule.name}</div>
-                              <div class="rule-entity">${rule.entity_id}</div>
-                              <div class="rule-subscribers">
-                                → ${(rule.subscribers || [])
-                                  .map(this._getSubscriberNames())
-                                  .join(", ")}
+      <ha-app-layout>
+        <app-header fixed slot="header">
+          <app-toolbar>
+            <ha-menu-button .hass=${this.hass}></ha-menu-button>
+            <div main-title>ntfy Alerts</div>
+            <span flex></span>
+            <ha-icon-button
+              icon="mdi:account-group"
+              @click=${() => (this._showUserManager = true)}
+              label="Users"
+            ></ha-icon-button>
+            <ha-icon-button
+              icon="mdi:plus"
+              @click=${() => (this._showNewRuleDialog = true)}
+              label="New Rule"
+            ></ha-icon-button>
+          </app-toolbar>
+        </app-header>
+        <div class="content">
+          ${this.loading
+            ? html`<div class="center"><ha-circular-progress active></ha-circular-progress></div>`
+            : this._loadError
+              ? html`<div class="error">
+                  Unable to connect to the ntfy Alerts integration.
+                  Make sure it is installed and configured.
+                </div>`
+              : html`
+                  <div class="rules-list">
+                    ${this.rules.length === 0
+                      ? html`<div class="empty">No rules yet. Create one!</div>`
+                      : this.rules.map(
+                          (rule) => html`
+                            <div class="rule-row">
+                              <div class="rule-info">
+                                <div class="rule-name">${rule.name}</div>
+                                <div class="rule-entity">${rule.entity_id}</div>
+                                <div class="rule-subscribers">
+                                  → ${(rule.subscribers || [])
+                                    .map(this._getSubscriberNames())
+                                    .join(", ")}
+                                </div>
+                              </div>
+                              <div class="rule-actions">
+                                <ha-switch
+                                  ?checked=${rule.enabled}
+                                  @change=${(e) =>
+                                    this._toggleRule(rule.rule_id, e.target.checked)}
+                                ></ha-switch>
+                                <ha-icon-button
+                                  icon="mdi:delete"
+                                  @click=${() => this._deleteRule(rule.rule_id)}
+                                  class="delete-btn"
+                                ></ha-icon-button>
                               </div>
                             </div>
-                            <div class="rule-actions">
-                              <ha-switch
-                                ?checked=${rule.enabled}
-                                @change=${(e) =>
-                                  this._toggleRule(rule.rule_id, e.target.checked)}
-                              ></ha-switch>
-                              <ha-button
-                                @click=${() => this._deleteRule(rule.rule_id)}
-                                class="delete-btn"
-                              >
-                                ✕
-                              </ha-button>
-                            </div>
-                          </div>
-                        `
-                      )}
-                </div>
-              `}
+                          `
+                        )}
+                  </div>
+                `}
+        </div>
+      </ha-app-layout>
 
-        ${this._showNewRuleDialog
-          ? html`
-              <ntfy-rule-editor
-                .hass=${this.hass}
-                .users=${this.users}
-                @close=${() => {
-                  this._showNewRuleDialog = false;
-                  this._loadRules();
-                }}
-              ></ntfy-rule-editor>
-            `
-          : ""}
-        ${this._showUserManager
-          ? html`
-              <ntfy-user-manager
-                .hass=${this.hass}
-                .users=${this.users}
-                @close=${this._handleUserManagerClose}
-                @users-changed=${this._loadRules}
-              ></ntfy-user-manager>
-            `
-          : ""}
-      </ha-card>
+      ${this._showNewRuleDialog
+        ? html`
+            <ntfy-rule-editor
+              .hass=${this.hass}
+              .users=${this.users}
+              @dialog-closed=${() => {
+                this._showNewRuleDialog = false;
+                this._loadRules();
+              }}
+            ></ntfy-rule-editor>
+          `
+        : ""}
+      ${this._showUserManager
+        ? html`
+            <ntfy-user-manager
+              .hass=${this.hass}
+              .users=${this.users}
+              @dialog-closed=${this._handleUserManagerDialogClosed}
+              @users-changed=${this._loadRules}
+            ></ntfy-user-manager>
+          `
+        : ""}
     `;
   }
 
   static get styles() {
     return css`
-      .card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px;
-        font-size: 18px;
-        font-weight: 500;
+      :host {
+        display: block;
+        height: 100%;
       }
-      .header-actions {
+      ha-app-layout {
+        height: 100%;
+      }
+      .content {
+        padding: 16px;
+      }
+      .center {
         display: flex;
-        gap: 8px;
+        justify-content: center;
+        padding: 48px;
       }
       .rules-list {
-        padding: 0 16px 16px;
+        max-width: 800px;
       }
       .rule-row {
         display: flex;
@@ -641,25 +641,18 @@ class NtfyAlertsCard extends LitElement {
       .delete-btn {
         color: var(--error-color);
       }
-      .empty {
+      .empty, .error {
         text-align: center;
+        padding: 48px;
+      }
+      .empty {
         color: var(--secondary-text-color);
-        padding: 32px;
       }
       .error {
-        text-align: center;
         color: var(--error-color, #db4437);
-        padding: 32px;
       }
     `;
   }
 }
 
-customElements.define("ntfy-alerts-card", NtfyAlertsCard);
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "ntfy-alerts-card",
-  name: "ntfy Alerts",
-  description: "Manage ntfy alert rules for entity state changes",
-});
+customElements.define("ntfy-alerts-panel", NtfyAlertsPanel);

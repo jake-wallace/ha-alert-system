@@ -7,8 +7,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.components import websocket_api
-from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components import panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.websocket_api import (
     async_register_command,
@@ -200,15 +199,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         await hass.http.async_register_static_paths(
-            [StaticPathConfig("/ntfy_alerts_card", hass.config.path("custom_components/ntfy_alerts/frontend"), cache_headers=False)]
+            [StaticPathConfig("/ntfy_alerts_panel", hass.config.path("custom_components/ntfy_alerts/frontend"), cache_headers=False)]
         )
     except AttributeError:
         hass.http.register_static_path(
-            "/ntfy_alerts_card", hass.config.path("custom_components/ntfy_alerts/frontend"), cache_headers=False
+            "/ntfy_alerts_panel", hass.config.path("custom_components/ntfy_alerts/frontend"), cache_headers=False
         )
-    add_extra_js_url(
-        hass,
-        "/ntfy_alerts_card/ntfy-alerts-card.js",
+    await panel_custom.async_register_panel(
+        hass=hass,
+        frontend_url_path="ntfy-alerts",
+        webcomponent_name="ntfy-alerts-panel",
+        sidebar_title="ntfy Alerts",
+        sidebar_icon="mdi:bell-ring",
+        module_url="/ntfy_alerts_panel/ntfy-alerts-panel.js",
+        require_admin=True,
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -232,6 +236,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             WS_TYPE_REMOVE_USER,
         ]:
             hass.components.websocket_api.async_unregister_command(ws_type)
+        try:
+            hass.components.frontend.async_remove_panel("ntfy-alerts")
+        except (AttributeError, KeyError):
+            pass
         hass.data.pop(DOMAIN, None)
     return unload_ok
 

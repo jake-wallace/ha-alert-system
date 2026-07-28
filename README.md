@@ -12,6 +12,6 @@ Home Assistant integration that pushes entity state change notifications to your
 
 ## Usage
 
-Add the ntfy Alerts card to a Lovelace dashboard to manage notification rules visually.
+Once configured, open the **ntfy Alerts** panel from the sidebar to manage notification rules visually.
 
 Create rules that watch entity state changes and send push notifications to selected subscribers.
