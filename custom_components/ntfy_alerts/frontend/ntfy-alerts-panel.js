@@ -668,6 +668,13 @@ class NtfyAlertsPanel extends HTMLElement {
   }
 }
 
+function createNtfyPanel() {
+  var el = document.createElement("div");
+  Object.setPrototypeOf(el, NtfyAlertsPanel.prototype);
+  el._init();
+  return el;
+}
+
 try {
   if (!customElements.get("ntfy-alerts-panel")) {
     customElements.define("ntfy-alerts-panel", NtfyAlertsPanel);
@@ -675,21 +682,10 @@ try {
 } catch (e) {
 }
 
-try {
-  document.createElement("ntfy-alerts-panel");
-} catch (e) {
-  const origCE = Document.prototype.createElement;
-  Document.prototype.createElement = function (tagName, options) {
-    if (tagName === "ntfy-alerts-panel") {
-      try {
-        return origCE.call(this, tagName, options);
-      } catch (e2) {
-        const el = origCE.call(this, "div", options);
-        Object.setPrototypeOf(el, NtfyAlertsPanel.prototype);
-        el._init();
-        return el;
-      }
-    }
-    return origCE.call(this, tagName, options);
-  };
-}
+var origCE = Document.prototype.createElement;
+Document.prototype.createElement = function (tagName, options) {
+  if (tagName === "ntfy-alerts-panel") {
+    return createNtfyPanel();
+  }
+  return origCE.call(this, tagName, options);
+};

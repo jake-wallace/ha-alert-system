@@ -103,7 +103,7 @@ async function handleWS(msg) {
   }
 }
 
-const panel = document.createElement("ntfy-alerts-panel");
+const panel = createNtfyPanel();
 container.appendChild(panel);
 panel.hass = mockHass;
 
