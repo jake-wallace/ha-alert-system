@@ -664,4 +664,9 @@ class NtfyAlertsPanel extends HTMLElement {
   }
 }
 
-customElements.define("ntfy-alerts-panel", NtfyAlertsPanel);
+if (!customElements.get("ntfy-alerts-panel")) {
+  console.log("Defining ntfy-alerts-panel");
+  customElements.define("ntfy-alerts-panel", NtfyAlertsPanel);
+} else {
+  console.warn("ntfy-alerts-panel already defined, constructor:", customElements.get("ntfy-alerts-panel").name);
+}
