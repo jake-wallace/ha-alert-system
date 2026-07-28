@@ -72,10 +72,14 @@ async def async_get_rules(
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
-    rules = await async_load_rules(hass)
-    config = hass.data.get(DOMAIN, {}).get("config", {})
-    users = config.get("users", {})
-    connection.send_result(msg["id"], {"rules": rules, "users": users})
+    try:
+        rules = await async_load_rules(hass)
+        config = hass.data.get(DOMAIN, {}).get("config", {})
+        users = config.get("users", {})
+        connection.send_result(msg["id"], {"rules": rules, "users": users})
+    except Exception as err:
+        _LOGGER.exception("Error in async_get_rules: %s", err)
+        connection.send_error(msg["id"], "internal_error", str(err))
 
 
 @websocket_command({vol.Required("type"): WS_TYPE_SAVE_RULE, vol.Required("rule"): RULE_SCHEMA})
