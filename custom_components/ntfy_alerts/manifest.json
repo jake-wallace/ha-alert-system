@@ -7,8 +7,6 @@
   "documentation": "https://github.com/jake-wallace/ha-alert-system",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
-  "icon": "mdi:bell-ring",
-  "issue_tracker": "https://github.com/jake-wallace/ha-alert-system/issues",
   "requirements": [],
   "version": "0.1.0"
 }
