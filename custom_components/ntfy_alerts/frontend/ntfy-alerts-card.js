@@ -574,7 +574,24 @@ class NtfyAlertsCard extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this._retryCount = 0;
+    this._retryTimer = null;
     this._loadRules();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this._retryTimer) {
+      clearTimeout(this._retryTimer);
+      this._retryTimer = null;
+    }
+  }
+
+  updated(changedProps) {
+    super.updated(changedProps);
+    if (changedProps.has("hass") && this.hass) {
+      this._loadRules();
+    }
   }
 
   async _loadRules() {
@@ -585,9 +602,15 @@ class NtfyAlertsCard extends LitElement {
         type: "ntfy_alerts/get_rules",
       });
       this.rules = result.rules || [];
+      this._retryCount = 0;
     } catch (e) {
       console.error("Failed to load ntfy rules:", e);
       this.rules = [];
+      if (e.code === "unknown_command" && this._retryCount < 5) {
+        this._retryCount++;
+        const delay = Math.min(1000 * 2 ** (this._retryCount - 1), 16000);
+        this._retryTimer = setTimeout(() => this._loadRules(), delay);
+      }
     }
     this.loading = false;
   }
