@@ -288,7 +288,7 @@ class NtfyAlertsPanel extends HTMLElement {
   _openNewRuleDialog() {
     if (this._dialogContainer) return;
     this._dialogContainer = document.createElement("div");
-    document.body.appendChild(this._dialogContainer);
+    this.appendChild(this._dialogContainer);
 
     const editor = document.createElement("ntfy-rule-editor");
     editor._hass = this._hass;
@@ -304,7 +304,7 @@ class NtfyAlertsPanel extends HTMLElement {
   _openUserManager() {
     if (this._dialogContainer) return;
     this._dialogContainer = document.createElement("div");
-    document.body.appendChild(this._dialogContainer);
+    this.appendChild(this._dialogContainer);
 
     const mgr = document.createElement("ntfy-user-manager");
     mgr._hass = this._hass;
