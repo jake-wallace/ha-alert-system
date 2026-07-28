@@ -10,10 +10,14 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.components.websocket_api import decorators, async_register_command
+from homeassistant.components.websocket_api import (
+    async_register_command,
+    async_response,
+    websocket_command,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_STATE_CHANGED
-from homeassistant.core import Event, EventStateChangedData, HomeAssistant, ServiceCall, callback
+from homeassistant.core import Event, EventStateChangedData, HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
@@ -92,38 +96,22 @@ SCHEMA_WS_REMOVE_USER = websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
 )
 
 
-@callback
-def _async_get_rules(
-    hass: HomeAssistant,
-    connection: websocket_api.ActiveConnection,
-    msg: dict,
-) -> None:
-    hass.async_create_task(
-        _async_handle_get_rules(hass, connection, msg)
-    )
-
-
-async def _async_handle_get_rules(
+@websocket_command(SCHEMA_WS_GET_RULES)
+@async_response
+async def async_get_rules(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
     rules = await async_load_rules(hass)
-    connection.send_result(msg["id"], {"rules": rules})
+    config = hass.data.get(DOMAIN, {}).get("config", {})
+    users = config.get("users", {})
+    connection.send_result(msg["id"], {"rules": rules, "users": users})
 
 
-@callback
-def _async_save_rule(
-    hass: HomeAssistant,
-    connection: websocket_api.ActiveConnection,
-    msg: dict,
-) -> None:
-    hass.async_create_task(
-        _async_handle_save_rule(hass, connection, msg)
-    )
-
-
-async def _async_handle_save_rule(
+@websocket_command(SCHEMA_WS_SAVE_RULE)
+@async_response
+async def async_save_rule(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
@@ -132,18 +120,9 @@ async def _async_handle_save_rule(
     connection.send_result(msg["id"], {"rule_id": rule_id})
 
 
-@callback
-def _async_update_rule(
-    hass: HomeAssistant,
-    connection: websocket_api.ActiveConnection,
-    msg: dict,
-) -> None:
-    hass.async_create_task(
-        _async_handle_update_rule(hass, connection, msg)
-    )
-
-
-async def _async_handle_update_rule(
+@websocket_command(SCHEMA_WS_UPDATE_RULE)
+@async_response
+async def async_update_rule(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
@@ -152,18 +131,9 @@ async def _async_handle_update_rule(
     connection.send_result(msg["id"], {"success": result})
 
 
-@callback
-def _async_delete_rule(
-    hass: HomeAssistant,
-    connection: websocket_api.ActiveConnection,
-    msg: dict,
-) -> None:
-    hass.async_create_task(
-        _async_handle_delete_rule(hass, connection, msg)
-    )
-
-
-async def _async_handle_delete_rule(
+@websocket_command(SCHEMA_WS_DELETE_RULE)
+@async_response
+async def async_delete_rule(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
@@ -172,8 +142,9 @@ async def _async_handle_delete_rule(
     connection.send_result(msg["id"], {"success": result})
 
 
-@callback
-def _async_add_user(
+@websocket_command(SCHEMA_WS_ADD_USER)
+@async_response
+async def async_add_user(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
@@ -192,8 +163,9 @@ def _async_add_user(
     connection.send_result(msg["id"], {"user_id": user_id})
 
 
-@callback
-def _async_remove_user(
+@websocket_command(SCHEMA_WS_REMOVE_USER)
+@async_response
+async def async_remove_user(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
@@ -245,12 +217,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DOMAIN, SERVICE_RELOAD_RULES, _handle_reload_rules
     )
 
-    async_register_command(hass, _async_get_rules, SCHEMA_WS_GET_RULES)
-    async_register_command(hass, _async_save_rule, SCHEMA_WS_SAVE_RULE)
-    async_register_command(hass, _async_update_rule, SCHEMA_WS_UPDATE_RULE)
-    async_register_command(hass, _async_delete_rule, SCHEMA_WS_DELETE_RULE)
-    async_register_command(hass, _async_add_user, SCHEMA_WS_ADD_USER)
-    async_register_command(hass, _async_remove_user, SCHEMA_WS_REMOVE_USER)
+    async_register_command(hass, async_get_rules)
+    async_register_command(hass, async_save_rule)
+    async_register_command(hass, async_update_rule)
+    async_register_command(hass, async_delete_rule)
+    async_register_command(hass, async_add_user)
+    async_register_command(hass, async_remove_user)
 
     try:
         await hass.http.async_register_static_paths(

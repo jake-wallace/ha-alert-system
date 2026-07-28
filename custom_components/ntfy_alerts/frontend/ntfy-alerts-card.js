@@ -1,123 +1,10 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/npm/lit@3/+esm";
 
-class NtfyEntityPicker extends LitElement {
-  static get properties() {
-    return {
-      hass: { type: Object },
-      selectedEntity: { type: String },
-      filter: { type: String },
-    };
-  }
-
-  constructor() {
-    super();
-    this.selectedEntity = "";
-    this.filter = "";
-  }
-
-  get _entities() {
-    if (!this.hass?.states) return [];
-    const all = Object.keys(this.hass.states).map((entityId) => ({
-      entity_id: entityId,
-      state: this.hass.states[entityId].state,
-      friendly_name:
-        this.hass.states[entityId].attributes?.friendly_name || entityId,
-    }));
-    if (!this.filter) return all;
-    const f = this.filter.toLowerCase();
-    return all.filter(
-      (e) =>
-        e.entity_id.toLowerCase().includes(f) ||
-        e.friendly_name.toLowerCase().includes(f)
-    );
-  }
-
-  render() {
-    return html`
-      <div class="picker">
-        <ha-textfield
-          label="Search entities\u2026"
-          .value=${this.filter}
-          @input=${(e) => (this.filter = e.target.value)}
-          class="search"
-        ></ha-textfield>
-        <div class="entity-list">
-          ${this._entities.slice(0, 50).map(
-            (entity) => html`
-              <div
-                class="entity-row ${this.selectedEntity === entity.entity_id
-                  ? "selected"
-                  : ""}"
-                @click=${() => {
-                  this.selectedEntity = entity.entity_id;
-                  this.dispatchEvent(
-                    new CustomEvent("entity-selected", {
-                      detail: { entity_id: entity.entity_id },
-                    })
-                  );
-                }}
-              >
-                <span class="entity-name">${entity.friendly_name}</span>
-                <span class="entity-id">${entity.entity_id}</span>
-                <span class="entity-state">${entity.state}</span>
-              </div>
-            `
-          )}
-        </div>
-      </div>
-    `;
-  }
-
-  static get styles() {
-    return css`
-      .picker {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        max-height: 400px;
-      }
-      .search {
-        width: 100%;
-      }
-      .entity-list {
-        overflow-y: auto;
-        max-height: 300px;
-      }
-      .entity-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 8px;
-        cursor: pointer;
-        border-radius: 4px;
-      }
-      .entity-row:hover {
-        background: var(--primary-color, #03a9f4);
-        color: white;
-      }
-      .entity-row.selected {
-        background: var(--primary-color, #03a9f4);
-        color: white;
-      }
-      .entity-name {
-        font-weight: 500;
-      }
-      .entity-id {
-        font-size: 12px;
-        color: var(--secondary-text-color);
-      }
-      .entity-state {
-        font-size: 12px;
-      }
-    `;
-  }
-}
-
-customElements.define("ntfy-entity-picker", NtfyEntityPicker);
-
 class NtfyRuleEditor extends LitElement {
   static get properties() {
     return {
       hass: { type: Object },
+      users: { type: Object },
       rule: { type: Object },
       _name: { type: String },
       _entityId: { type: String },
@@ -130,13 +17,13 @@ class NtfyRuleEditor extends LitElement {
       _tags: { type: String },
       _cooldown: { type: Number },
       _saving: { type: Boolean },
-      _showEntityPicker: { type: Boolean },
     };
   }
 
   constructor() {
     super();
     this.rule = null;
+    this.users = {};
     this._name = "";
     this._entityId = "";
     this._fromState = "";
@@ -148,7 +35,6 @@ class NtfyRuleEditor extends LitElement {
     this._tags = "";
     this._cooldown = 60;
     this._saving = false;
-    this._showEntityPicker = false;
     this._editMode = false;
   }
 
@@ -170,7 +56,7 @@ class NtfyRuleEditor extends LitElement {
   }
 
   get _users() {
-    return this.hass?.config?.ntfy_alerts?.users || {};
+    return this.users || {};
   }
 
   _toggleSubscriber(userId) {
@@ -236,32 +122,13 @@ class NtfyRuleEditor extends LitElement {
             required
           ></ha-textfield>
 
-          <div class="entity-field">
-            <ha-textfield
-              label="Entity"
-              .value=${this._entityId}
-              @input=${(e) => (this._entityId = e.target.value)}
-              required
-            ></ha-textfield>
-            <ha-button
-              @click=${() => (this._showEntityPicker = !this._showEntityPicker)}
-            >
-              Browse
-            </ha-button>
-          </div>
-
-          ${this._showEntityPicker
-            ? html`
-                <ntfy-entity-picker
-                  .hass=${this.hass}
-                  .selectedEntity=${this._entityId}
-                  @entity-selected=${(e) => {
-                    this._entityId = e.detail.entity_id;
-                    this._showEntityPicker = false;
-                  }}
-                ></ntfy-entity-picker>
-              `
-            : ""}
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${this._entityId}
+            @value-changed=${(e) => {
+              if (e.detail.value) this._entityId = e.detail.value;
+            }}
+          ></ha-entity-picker>
 
           <div class="conditions-row">
             <ha-textfield
@@ -352,14 +219,6 @@ class NtfyRuleEditor extends LitElement {
         gap: 12px;
         min-width: 400px;
       }
-      .entity-field {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      .entity-field ha-textfield {
-        flex: 1;
-      }
       .conditions-row {
         display: flex;
         gap: 8px;
@@ -396,7 +255,7 @@ class NtfyUserManager extends LitElement {
   static get properties() {
     return {
       hass: { type: Object },
-      _users: { type: Object },
+      users: { type: Object },
       _newName: { type: String },
       _newTopic: { type: String },
       _saving: { type: Boolean },
@@ -405,13 +264,14 @@ class NtfyUserManager extends LitElement {
 
   constructor() {
     super();
+    this.users = {};
     this._newName = "";
     this._newTopic = "";
     this._saving = false;
   }
 
   get _users() {
-    return this.hass?.config?.ntfy_alerts?.users || {};
+    return this.users || {};
   }
 
   async _addUser() {
@@ -425,7 +285,7 @@ class NtfyUserManager extends LitElement {
       });
       this._newName = "";
       this._newTopic = "";
-      this.requestUpdate();
+      this.dispatchEvent(new CustomEvent("users-changed"));
     } catch (e) {
       alert("Failed to add user: " + e.message);
     }
@@ -439,7 +299,7 @@ class NtfyUserManager extends LitElement {
         type: "ntfy_alerts/remove_user",
         user_id: userId,
       });
-      this.requestUpdate();
+      this.dispatchEvent(new CustomEvent("users-changed"));
     } catch (e) {
       alert("Failed to remove user: " + e.message);
     }
@@ -550,6 +410,7 @@ class NtfyAlertsCard extends LitElement {
       hass: { type: Object },
       config: { type: Object },
       rules: { type: Array },
+      users: { type: Object },
       loading: { type: Boolean },
       _showNewRuleDialog: { type: Boolean },
       _showUserManager: { type: Boolean },
@@ -559,6 +420,7 @@ class NtfyAlertsCard extends LitElement {
   constructor() {
     super();
     this.rules = [];
+    this.users = {};
     this.loading = true;
     this._showNewRuleDialog = false;
     this._showUserManager = false;
@@ -576,6 +438,7 @@ class NtfyAlertsCard extends LitElement {
     super.connectedCallback();
     this._retryCount = 0;
     this._retryTimer = null;
+    this._loadError = false;
     this._loadRules();
   }
 
@@ -597,12 +460,15 @@ class NtfyAlertsCard extends LitElement {
   async _loadRules() {
     if (!this.hass) return;
     this.loading = true;
+    this._loadError = false;
     try {
       const result = await this.hass.callWS({
         type: "ntfy_alerts/get_rules",
       });
       this.rules = result.rules || [];
+      this.users = result.users || {};
       this._retryCount = 0;
+      this._loadError = false;
     } catch (e) {
       console.error("Failed to load ntfy rules:", e);
       this.rules = [];
@@ -610,6 +476,8 @@ class NtfyAlertsCard extends LitElement {
         this._retryCount++;
         const delay = Math.min(1000 * 2 ** (this._retryCount - 1), 16000);
         this._retryTimer = setTimeout(() => this._loadRules(), delay);
+      } else {
+        this._loadError = true;
       }
     }
     this.loading = false;
@@ -636,8 +504,12 @@ class NtfyAlertsCard extends LitElement {
   }
 
   _getSubscriberNames() {
-    const users = this.hass?.config?.ntfy_alerts?.users || {};
-    return (userId) => users[userId]?.name || userId;
+    return (userId) => this.users[userId]?.name || userId;
+  }
+
+  _handleUserManagerClose() {
+    this._showUserManager = false;
+    this._loadRules();
   }
 
   render() {
@@ -657,45 +529,51 @@ class NtfyAlertsCard extends LitElement {
 
         ${this.loading
           ? html`<ha-circular-progress active></ha-circular-progress>`
-          : html`
-              <div class="rules-list">
-                ${this.rules.length === 0
-                  ? html`<div class="empty">No rules yet. Create one!</div>`
-                  : this.rules.map(
-                      (rule) => html`
-                        <div class="rule-row">
-                          <div class="rule-info">
-                            <div class="rule-name">${rule.name}</div>
-                            <div class="rule-entity">${rule.entity_id}</div>
-                            <div class="rule-subscribers">
-                              → ${(rule.subscribers || [])
-                                .map(this._getSubscriberNames())
-                                .join(", ")}
+          : this._loadError
+            ? html`<div class="error">
+                Unable to connect to the ntfy Alerts integration.
+                Make sure it is installed and configured.
+              </div>`
+            : html`
+                <div class="rules-list">
+                  ${this.rules.length === 0
+                    ? html`<div class="empty">No rules yet. Create one!</div>`
+                    : this.rules.map(
+                        (rule) => html`
+                          <div class="rule-row">
+                            <div class="rule-info">
+                              <div class="rule-name">${rule.name}</div>
+                              <div class="rule-entity">${rule.entity_id}</div>
+                              <div class="rule-subscribers">
+                                → ${(rule.subscribers || [])
+                                  .map(this._getSubscriberNames())
+                                  .join(", ")}
+                              </div>
+                            </div>
+                            <div class="rule-actions">
+                              <ha-switch
+                                ?checked=${rule.enabled}
+                                @change=${(e) =>
+                                  this._toggleRule(rule.rule_id, e.target.checked)}
+                              ></ha-switch>
+                              <ha-button
+                                @click=${() => this._deleteRule(rule.rule_id)}
+                                class="delete-btn"
+                              >
+                                ✕
+                              </ha-button>
                             </div>
                           </div>
-                          <div class="rule-actions">
-                            <ha-switch
-                              ?checked=${rule.enabled}
-                              @change=${(e) =>
-                                this._toggleRule(rule.rule_id, e.target.checked)}
-                            ></ha-switch>
-                            <ha-button
-                              @click=${() => this._deleteRule(rule.rule_id)}
-                              class="delete-btn"
-                            >
-                              ✕
-                            </ha-button>
-                          </div>
-                        </div>
-                      `
-                    )}
-              </div>
-            `}
+                        `
+                      )}
+                </div>
+              `}
 
         ${this._showNewRuleDialog
           ? html`
               <ntfy-rule-editor
                 .hass=${this.hass}
+                .users=${this.users}
                 @close=${() => {
                   this._showNewRuleDialog = false;
                   this._loadRules();
@@ -707,7 +585,9 @@ class NtfyAlertsCard extends LitElement {
           ? html`
               <ntfy-user-manager
                 .hass=${this.hass}
-                @close=${() => (this._showUserManager = false)}
+                .users=${this.users}
+                @close=${this._handleUserManagerClose}
+                @users-changed=${this._loadRules}
               ></ntfy-user-manager>
             `
           : ""}
@@ -764,6 +644,11 @@ class NtfyAlertsCard extends LitElement {
       .empty {
         text-align: center;
         color: var(--secondary-text-color);
+        padding: 32px;
+      }
+      .error {
+        text-align: center;
+        color: var(--error-color, #db4437);
         padding: 32px;
       }
     `;
