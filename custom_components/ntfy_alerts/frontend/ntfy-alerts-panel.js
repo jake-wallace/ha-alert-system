@@ -411,8 +411,11 @@ class NtfyAlertsPanel extends LitElement {
       rules: { type: Array },
       users: { type: Object },
       loading: { type: Boolean },
-      _showNewRuleDialog: { type: Boolean },
-      _showUserManager: { type: Boolean },
+      _loadError: { type: Boolean },
+      _retryCount: { type: Number },
+      _retryTimer: { type: Object },
+      _showForm: { type: Boolean },
+      _editingRule: { type: Object },
     };
   }
 
@@ -421,16 +424,16 @@ class NtfyAlertsPanel extends LitElement {
     this.rules = [];
     this.users = {};
     this.loading = true;
+    this._retryCount = 0;
+    this._retryTimer = null;
+    this._loadError = false;
     this._showNewRuleDialog = false;
     this._showUserManager = false;
   }
 
   connectedCallback() {
     super.connectedCallback();
-    this._retryCount = 0;
-    this._retryTimer = null;
-    this._loadError = false;
-    this._loadRules();
+    setTimeout(() => this._loadRules(), 500);
   }
 
   disconnectedCallback() {
@@ -461,10 +464,10 @@ class NtfyAlertsPanel extends LitElement {
       this._retryCount = 0;
       this._loadError = false;
     } catch (e) {
-      console.error("Failed to load ntfy rules:", e);
+      const code = e?.code || e;
+      console.error("Failed to load ntfy rules:", { code, error: e });
       this.rules = [];
-      const code = e?.code || "";
-      if (code === "unknown_command" && this._retryCount < 5) {
+      if (this._retryCount < 10) {
         this._retryCount++;
         const delay = Math.min(1000 * 2 ** (this._retryCount - 1), 16000);
         this._retryTimer = setTimeout(() => this._loadRules(), delay);
