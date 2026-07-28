@@ -17,7 +17,7 @@ from homeassistant.components.websocket_api import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_STATE_CHANGED
-from homeassistant.core import Event, EventStateChangedData, HomeAssistant, ServiceCall
+from homeassistant.core import Event, EventStateChangedData, HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
@@ -65,38 +65,8 @@ WS_TYPE_DELETE_RULE = "ntfy_alerts/delete_rule"
 WS_TYPE_ADD_USER = "ntfy_alerts/add_user"
 WS_TYPE_REMOVE_USER = "ntfy_alerts/remove_user"
 
-SCHEMA_WS_GET_RULES = websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-    {vol.Required("type"): WS_TYPE_GET_RULES}
-)
-SCHEMA_WS_SAVE_RULE = websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-    {vol.Required("type"): WS_TYPE_SAVE_RULE, vol.Required("rule"): RULE_SCHEMA}
-)
-SCHEMA_WS_UPDATE_RULE = websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-    {
-        vol.Required("type"): WS_TYPE_UPDATE_RULE,
-        vol.Required("rule_id"): str,
-        vol.Required("updates"): dict,
-    }
-)
-SCHEMA_WS_DELETE_RULE = websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-    {vol.Required("type"): WS_TYPE_DELETE_RULE, vol.Required("rule_id"): str}
-)
-SCHEMA_WS_ADD_USER = websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-    {
-        vol.Required("type"): WS_TYPE_ADD_USER,
-        vol.Required("name"): str,
-        vol.Required("topic"): str,
-    }
-)
-SCHEMA_WS_REMOVE_USER = websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-    {
-        vol.Required("type"): WS_TYPE_REMOVE_USER,
-        vol.Required("user_id"): str,
-    }
-)
 
-
-@websocket_command(SCHEMA_WS_GET_RULES)
+@websocket_command({vol.Required("type"): WS_TYPE_GET_RULES})
 @async_response
 async def async_get_rules(
     hass: HomeAssistant,
@@ -109,7 +79,7 @@ async def async_get_rules(
     connection.send_result(msg["id"], {"rules": rules, "users": users})
 
 
-@websocket_command(SCHEMA_WS_SAVE_RULE)
+@websocket_command({vol.Required("type"): WS_TYPE_SAVE_RULE, vol.Required("rule"): RULE_SCHEMA})
 @async_response
 async def async_save_rule(
     hass: HomeAssistant,
@@ -120,7 +90,11 @@ async def async_save_rule(
     connection.send_result(msg["id"], {"rule_id": rule_id})
 
 
-@websocket_command(SCHEMA_WS_UPDATE_RULE)
+@websocket_command({
+    vol.Required("type"): WS_TYPE_UPDATE_RULE,
+    vol.Required("rule_id"): str,
+    vol.Required("updates"): dict,
+})
 @async_response
 async def async_update_rule(
     hass: HomeAssistant,
@@ -131,7 +105,7 @@ async def async_update_rule(
     connection.send_result(msg["id"], {"success": result})
 
 
-@websocket_command(SCHEMA_WS_DELETE_RULE)
+@websocket_command({vol.Required("type"): WS_TYPE_DELETE_RULE, vol.Required("rule_id"): str})
 @async_response
 async def async_delete_rule(
     hass: HomeAssistant,
@@ -142,7 +116,7 @@ async def async_delete_rule(
     connection.send_result(msg["id"], {"success": result})
 
 
-@websocket_command(SCHEMA_WS_ADD_USER)
+@websocket_command({vol.Required("type"): WS_TYPE_ADD_USER, vol.Required("name"): str, vol.Required("topic"): str})
 @async_response
 async def async_add_user(
     hass: HomeAssistant,
@@ -163,7 +137,7 @@ async def async_add_user(
     connection.send_result(msg["id"], {"user_id": user_id})
 
 
-@websocket_command(SCHEMA_WS_REMOVE_USER)
+@websocket_command({vol.Required("type"): WS_TYPE_REMOVE_USER, vol.Required("user_id"): str})
 @async_response
 async def async_remove_user(
     hass: HomeAssistant,
