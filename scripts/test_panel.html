@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ntfy Alerts Panel — Standalone Test</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f0f0f0;
+    color: #1c1c1e;
+  }
+  #mock-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px; background: #03a9f4; color: #fff;
+    font-size: 14px;
+  }
+  #mock-header a { color: #fff; }
+  ntfy-alerts-panel {
+    display: block;
+    max-width: 600px; margin: 20px auto;
+    background: #fff; border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+    min-height: 400px;
+  }
+</style>
+</head>
+<body>
+
+<div id="mock-header">
+  <span>🧪 Standalone Test Mode</span>
+  <span><a href="#" id="reload-link">Reload panel</a></span>
+</div>
+
+<ntfy-alerts-panel id="panel"></ntfy-alerts-panel>
+
+<script src="ntfy-alerts-panel.js"></script>
+<script>
+const panel = document.getElementById("panel");
+
+// In-memory store
+const store = {
+  rules: [
+    { rule_id: "rule_1", name: "Front Door Open", entity_id: "binary_sensor.front_door", conditions: { from_state: "off", to_state: "on" }, subscribers: ["user_1"], message: { title: "Door Alert", body: "Front door opened!", priority: 5, tags: "door" }, cooldown_seconds: 60, enabled: true, created: new Date().toISOString() },
+    { rule_id: "rule_2", name: "Garage Motion", entity_id: "binary_sensor.garage_motion", conditions: { from_state: null, to_state: "on" }, subscribers: ["user_1"], message: { title: "Motion Alert", body: "Motion detected in garage", priority: 3, tags: "motion" }, cooldown_seconds: 120, enabled: true, created: new Date().toISOString() },
+    { rule_id: "rule_3", name: "High Temp", entity_id: "sensor.outdoor_temp", conditions: { from_state: null, to_state: null }, subscribers: ["user_2"], message: { title: "Temperature Alert", body: "Temperature threshold exceeded", priority: 8, tags: "temp" }, cooldown_seconds: 300, enabled: false, created: new Date().toISOString() },
+  ],
+  users: {
+    user_1: { name: "Alice", topic: "alerts_alice" },
+    user_2: { name: "Bob", topic: "alerts_bob" },
+  },
+  nextRuleId: 4,
+  nextUserId: 3,
+};
+
+let callId = 1;
+
+// Mock HA connection
+const mockHass = {
+  callWS(msg) {
+    return new Promise((resolve, reject) => {
+      setTimeout(async () => {
+        try {
+          const result = await handleWS(msg);
+          resolve(result);
+        } catch (e) {
+          reject(e);
+        }
+      }, 100); // simulate network delay
+    });
+  }
+};
+
+async function handleWS(msg) {
+  switch (msg.type) {
+    case "ntfy_alerts/get_rules":
+      return { rules: store.rules, users: store.users };
+
+    case "ntfy_alerts/save_rule": {
+      const rule = { ...msg.rule, rule_id: "rule_" + store.nextRuleId++, enabled: true, created: new Date().toISOString() };
+      store.rules.push(rule);
+      return { rule_id: rule.rule_id };
+    }
+
+    case "ntfy_alerts/update_rule": {
+      const rule = store.rules.find(r => r.rule_id === msg.rule_id);
+      if (rule) Object.assign(rule, msg.updates);
+      return { success: true };
+    }
+
+    case "ntfy_alerts/delete_rule": {
+      store.rules = store.rules.filter(r => r.rule_id !== msg.rule_id);
+      return { success: true };
+    }
+
+    case "ntfy_alerts/add_user": {
+      const uid = "user_" + store.nextUserId++;
+      store.users[uid] = { name: msg.name, topic: msg.topic };
+      return { user_id: uid };
+    }
+
+    case "ntfy_alerts/remove_user": {
+      delete store.users[msg.user_id];
+      return { success: true };
+    }
+
+    default:
+      throw new Error("Unknown WS type: " + msg.type);
+  }
+}
+
+panel.hass = mockHass;
+
+document.getElementById("reload-link").onclick = (e) => {
+  e.preventDefault();
+  store.rules.length = 0;
+  store.rules.push({
+    rule_id: "demo_" + Date.now(), name: "Demo Rule (" + new Date().toLocaleTimeString() + ")",
+    entity_id: "sensor.demo", conditions: {}, subscribers: [],
+    message: { title: "Demo", body: "Refreshed", priority: 3, tags: "" },
+    cooldown_seconds: 60, enabled: true, created: new Date().toISOString()
+  });
+  panel._loadRules();
+};
+</script>
+</body>
+</html>

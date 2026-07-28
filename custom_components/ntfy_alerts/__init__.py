@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import voluptuous as vol
@@ -215,7 +216,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         webcomponent_name="ntfy-alerts-panel",
         sidebar_title="ntfy Alerts",
         sidebar_icon="mdi:bell-ring",
-        js_url="/ntfy_alerts_panel/ntfy-alerts-panel.js",
+        js_url=os.environ.get("NTFY_DEV_URL", "/ntfy_alerts_panel/ntfy-alerts-panel.js"),
         require_admin=True,
     )
 
