@@ -1,7 +1,6 @@
 class NtfyAlertsPanel extends HTMLElement {
   constructor() {
     super();
-    this.attachShadow({ mode: "open" });
     this._hass = null;
     this._rules = [];
     this._users = {};
@@ -9,9 +8,6 @@ class NtfyAlertsPanel extends HTMLElement {
     this._loadError = false;
     this._retryCount = 0;
     this._retryTimer = null;
-    this._showNewRuleDialog = false;
-    this._showUserManager = false;
-    this._dialogContainer = null;
     this.render();
   }
 
@@ -28,14 +24,8 @@ class NtfyAlertsPanel extends HTMLElement {
   }
 
   render() {
-    this.shadowRoot.innerHTML = `
+    this.innerHTML = `
       <style>
-        :host {
-          display: block;
-        }
-        .panel {
-          padding: 0;
-        }
         .toolbar {
           display: flex;
           align-items: center;
@@ -103,10 +93,50 @@ class NtfyAlertsPanel extends HTMLElement {
           flex-shrink: 0;
           margin-left: 16px;
         }
+        .rule-toggle {
+          position: relative;
+          width: 36px;
+          height: 20px;
+        }
+        .rule-toggle input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+        .rule-toggle .slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: var(--secondary-color, #ccc);
+          border-radius: 20px;
+          transition: 0.3s;
+        }
+        .rule-toggle .slider:before {
+          content: "";
+          position: absolute;
+          height: 16px; width: 16px;
+          left: 2px; bottom: 2px;
+          background: white;
+          border-radius: 50%;
+          transition: 0.3s;
+        }
+        .rule-toggle input:checked + .slider {
+          background: var(--primary-color, #03a9f4);
+        }
+        .rule-toggle input:checked + .slider:before {
+          transform: translateX(16px);
+        }
         .delete-btn {
-          color: var(--error-color);
-          min-width: 0;
-          padding: 0 8px;
+          color: var(--error-color, #db4437);
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 18px;
+          padding: 4px 8px;
+          border-radius: 4px;
+        }
+        .delete-btn:hover {
+          background: var(--secondary-color, rgba(0,0,0,0.05));
         }
         .empty, .error {
           text-align: center;
@@ -119,113 +149,226 @@ class NtfyAlertsPanel extends HTMLElement {
         .error {
           color: var(--error-color, #db4437);
         }
+        button {
+          font-family: var(--paper-font-common-base_-_font-family, inherit);
+          font-size: 14px;
+          font-weight: 500;
+          padding: 8px 16px;
+          border-radius: 4px;
+          cursor: pointer;
+          border: none;
+        }
+        button.primary {
+          background: var(--primary-color, #03a9f4);
+          color: var(--primary-text-color, #fff);
+        }
+        button.secondary {
+          background: transparent;
+          border: 1px solid var(--primary-color, #03a9f4);
+          color: var(--primary-color, #03a9f4);
+        }
+        button.unelevated {
+          background: var(--primary-color, #03a9f4);
+          color: var(--primary-text-color, #fff);
+        }
+        .dialog-overlay {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.3);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+        .dialog {
+          background: var(--card-background-color, #fff);
+          border-radius: 16px;
+          padding: 24px;
+          min-width: 400px;
+          max-width: 500px;
+          max-height: 80vh;
+          overflow-y: auto;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+        .dialog h2 {
+          margin: 0 0 16px 0;
+          font-size: 20px;
+          font-weight: 500;
+        }
+        .dialog .form {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .dialog .field-row {
+          display: flex;
+          gap: 8px;
+        }
+        .dialog .field-row > * {
+          flex: 1;
+        }
+        .dialog label {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          font-size: 12px;
+          color: var(--secondary-text-color);
+        }
+        .dialog input, .dialog textarea, .dialog select {
+          font-family: var(--paper-font-common-base_-_font-family, inherit);
+          font-size: 14px;
+          padding: 8px 12px;
+          border: 1px solid var(--divider-color, #ddd);
+          border-radius: 4px;
+          background: var(--input-background-color, #f5f5f5);
+          color: var(--primary-text-color, #333);
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .dialog input:focus, .dialog textarea:focus {
+          outline: none;
+          border-color: var(--primary-color, #03a9f4);
+        }
+        .dialog textarea {
+          min-height: 60px;
+          resize: vertical;
+        }
+        .dialog .checkbox-group {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .dialog .checkbox-label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          color: var(--primary-text-color);
+        }
+        .dialog .checkbox-label input[type="checkbox"] {
+          width: auto;
+          cursor: pointer;
+        }
+        .dialog .section-label {
+          font-weight: 500;
+          margin-top: 8px;
+          border-top: 1px solid var(--divider-color);
+          padding-top: 8px;
+          font-size: 14px;
+          color: var(--primary-text-color);
+        }
+        .dialog .dialog-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          margin-top: 16px;
+        }
+        .user-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .user-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px;
+          border: 1px solid var(--divider-color);
+          border-radius: 8px;
+        }
+        .user-info {
+          display: flex;
+          flex-direction: column;
+        }
+        .user-name {
+          font-weight: 500;
+        }
+        .user-topic {
+          font-size: 13px;
+          color: var(--secondary-text-color);
+        }
+        .section-label {
+          font-weight: 500;
+          margin-top: 8px;
+          border-top: 1px solid var(--divider-color);
+          padding-top: 8px;
+          font-size: 14px;
+          color: var(--primary-text-color);
+        }
       </style>
-      <div class="panel">
-        <div class="toolbar">
-          <div class="toolbar-title">ntfy Alerts</div>
-          <div class="toolbar-actions"></div>
+      <div class="toolbar">
+        <div class="toolbar-title">ntfy Alerts</div>
+        <div class="toolbar-actions">
+          <button class="secondary" id="users-btn">Users</button>
+          <button class="unelevated" id="new-rule-btn">＋ New Rule</button>
         </div>
-        <div class="content"></div>
       </div>
+      <div class="content" id="content"></div>
     `;
-    this._renderToolbar();
+
+    this.querySelector("#users-btn").onclick = () => this._openUserManager();
+    this.querySelector("#new-rule-btn").onclick = () => this._openNewRuleDialog();
     this._renderContent();
   }
 
-  _renderToolbar() {
-    const actions = this.shadowRoot.querySelector(".toolbar-actions");
-    actions.innerHTML = "";
+  _renderLoading() {
+    return '<div class="center"><ha-circular-progress active></ha-circular-progress></div>';
+  }
 
-    const usersBtn = document.createElement("ha-button");
-    usersBtn.setAttribute("outlined", "");
-    usersBtn.textContent = "Users";
-    usersBtn.addEventListener("click", () => this._openUserManager());
-    actions.appendChild(usersBtn);
+  _renderError() {
+    return '<div class="error">Unable to connect to the ntfy Alerts integration. Make sure it is installed and configured.</div>';
+  }
 
-    const newRuleBtn = document.createElement("ha-button");
-    newRuleBtn.setAttribute("unelevated", "");
-    newRuleBtn.textContent = "＋ New Rule";
-    newRuleBtn.addEventListener("click", () => this._openNewRuleDialog());
-    actions.appendChild(newRuleBtn);
+  _renderEmpty() {
+    return '<div class="empty">No rules yet. Create one!</div>';
+  }
+
+  _renderRules() {
+    return this._rules.map((rule) => `
+      <div class="rule-row">
+        <div class="rule-info">
+          <div class="rule-name">${this._escapeHtml(rule.name)}</div>
+          <div class="rule-entity">${this._escapeHtml(rule.entity_id)}</div>
+          <div class="rule-subscribers">→ ${this._escapeHtml(this._getSubscriberNames(rule.subscribers || []).join(", "))}</div>
+        </div>
+        <div class="rule-actions">
+          <label class="rule-toggle">
+            <input type="checkbox" ${rule.enabled !== false ? "checked" : ""} data-rule-id="${this._escapeHtml(rule.rule_id)}">
+            <span class="slider"></span>
+          </label>
+          <button class="delete-btn" data-rule-id="${this._escapeHtml(rule.rule_id)}">✕</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  _escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
   }
 
   _renderContent() {
-    const content = this.shadowRoot.querySelector(".content");
-    content.innerHTML = "";
-
+    const content = this.querySelector("#content");
+    if (!content) return;
     if (this._loading) {
-      const center = document.createElement("div");
-      center.className = "center";
-      const spinner = document.createElement("ha-circular-progress");
-      spinner.setAttribute("active", "");
-      center.appendChild(spinner);
-      content.appendChild(center);
+      content.innerHTML = this._renderLoading();
     } else if (this._loadError) {
-      const error = document.createElement("div");
-      error.className = "error";
-      error.textContent =
-        "Unable to connect to the ntfy Alerts integration. Make sure it is installed and configured.";
-      content.appendChild(error);
+      content.innerHTML = this._renderError();
     } else if (this._rules.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "empty";
-      empty.textContent = "No rules yet. Create one!";
-      content.appendChild(empty);
+      content.innerHTML = this._renderEmpty();
     } else {
-      const list = document.createElement("div");
-      list.className = "rules-list";
-      this._rules.forEach((rule) => {
-        const row = this._createRuleRow(rule);
-        list.appendChild(row);
+      content.innerHTML = this._renderRules();
+      content.querySelectorAll('.rule-toggle input[type="checkbox"]').forEach((cb) => {
+        cb.onchange = () => {
+          this._toggleRule(cb.dataset.ruleId, cb.checked);
+        };
       });
-      content.appendChild(list);
+      content.querySelectorAll(".delete-btn").forEach((btn) => {
+        btn.onclick = () => this._deleteRule(btn.dataset.ruleId);
+      });
     }
-  }
-
-  _createRuleRow(rule) {
-    const row = document.createElement("div");
-    row.className = "rule-row";
-
-    const info = document.createElement("div");
-    info.className = "rule-info";
-
-    const name = document.createElement("div");
-    name.className = "rule-name";
-    name.textContent = rule.name;
-    info.appendChild(name);
-
-    const entity = document.createElement("div");
-    entity.className = "rule-entity";
-    entity.textContent = rule.entity_id;
-    info.appendChild(entity);
-
-    const subs = document.createElement("div");
-    subs.className = "rule-subscribers";
-    subs.textContent = `→ ${this._getSubscriberNames(rule.subscribers || []).join(", ")}`;
-    info.appendChild(subs);
-
-    row.appendChild(info);
-
-    const actions = document.createElement("div");
-    actions.className = "rule-actions";
-
-    const toggle = document.createElement("ha-switch");
-    toggle.checked = rule.enabled !== false;
-    toggle.addEventListener("change", () => {
-      this._toggleRule(rule.rule_id, toggle.checked);
-    });
-    actions.appendChild(toggle);
-
-    const deleteBtn = document.createElement("ha-button");
-    deleteBtn.className = "delete-btn";
-    deleteBtn.textContent = "✕";
-    deleteBtn.addEventListener("click", () => {
-      this._deleteRule(rule.rule_id);
-    });
-    actions.appendChild(deleteBtn);
-
-    row.appendChild(actions);
-    return row;
   }
 
   _getSubscriberNames(subscriberIds) {
@@ -267,6 +410,7 @@ class NtfyAlertsPanel extends HTMLElement {
   }
 
   _toggleRule(ruleId, enabled) {
+    if (!this._hass) return;
     this._hass.callWS({
       type: "ntfy_alerts/update_rule",
       rule_id: ruleId,
@@ -277,6 +421,7 @@ class NtfyAlertsPanel extends HTMLElement {
   }
 
   async _deleteRule(ruleId) {
+    if (!this._hass) return;
     await this._hass.callWS({
       type: "ntfy_alerts/delete_rule",
       rule_id: ruleId,
@@ -286,455 +431,219 @@ class NtfyAlertsPanel extends HTMLElement {
   }
 
   _openNewRuleDialog() {
-    if (this._dialogContainer) return;
-    this._dialogContainer = document.createElement("div");
-    this.appendChild(this._dialogContainer);
-
-    const editor = document.createElement("ntfy-rule-editor");
-    editor._hass = this._hass;
-    editor._users = this._users;
-    editor.addEventListener("dialog-closed", () => {
-      this._dialogContainer.remove();
-      this._dialogContainer = null;
-      this._loadRules();
-    });
-    this._dialogContainer.appendChild(editor);
+    if (this._dialog) return;
+    this._dialog = this._createDialog(null);
   }
 
   _openUserManager() {
-    if (this._dialogContainer) return;
-    this._dialogContainer = document.createElement("div");
-    this.appendChild(this._dialogContainer);
-
-    const mgr = document.createElement("ntfy-user-manager");
-    mgr._hass = this._hass;
-    mgr._users = this._users;
-    mgr.addEventListener("dialog-closed", () => {
-      this._dialogContainer.remove();
-      this._dialogContainer = null;
-    });
-    mgr.addEventListener("users-changed", () => {
-      this._loadRules();
-    });
-    this._dialogContainer.appendChild(mgr);
-  }
-}
-
-customElements.define("ntfy-alerts-panel", NtfyAlertsPanel);
-
-class NtfyRuleEditor extends HTMLElement {
-  constructor() {
-    super();
-    this._hass = null;
-    this._users = {};
-    this._editMode = false;
-    this._rule = null;
-    this._name = "";
-    this._entityId = "";
-    this._fromState = "";
-    this._toState = "";
-    this._subscribers = [];
-    this._title = "";
-    this._body = "";
-    this._priority = 3;
-    this._tags = "";
-    this._cooldown = 60;
-    this._saving = false;
-    this._dialog = null;
+    if (this._dialog) return;
+    this._dialog = this._createDialog("users");
   }
 
-  set _rule(rule) {
-    this._editMode = !!rule;
-    this._ruleValue = rule;
-    if (rule) {
-      this._name = rule.name || "";
-      this._entityId = rule.entity_id || "";
-      this._fromState = rule.conditions?.from_state || "";
-      this._toState = rule.conditions?.to_state || "";
-      this._subscribers = rule.subscribers || [];
-      this._title = rule.message?.title || "";
-      this._body = rule.message?.body || "";
-      this._priority = rule.message?.priority || 3;
-      this._tags = rule.message?.tags || "";
-      this._cooldown = rule.cooldown_seconds || 60;
-    }
-  }
-
-  get _rule() {
-    return this._ruleValue;
-  }
-
-  connectedCallback() {
-    this.render();
-  }
-
-  disconnectedCallback() {
+  _closeDialog() {
     if (this._dialog) {
       this._dialog.remove();
       this._dialog = null;
     }
   }
 
-  render() {
-    this.innerHTML = "";
+  _createDialog(type) {
+    const overlay = document.createElement("div");
+    overlay.className = "dialog-overlay";
+    overlay.onclick = (e) => {
+      if (e.target === overlay) this._closeDialog();
+    };
+    document.body.appendChild(overlay);
 
-    this._dialog = document.createElement("ha-dialog");
-    this._dialog.setAttribute("open", "");
-    this._dialog.heading = this._editMode ? "Edit Rule" : "New Rule";
-    this._dialog.addEventListener("closed", () => {
-      this.dispatchEvent(new CustomEvent("dialog-closed"));
-    });
+    if (type === "users") {
+      this._renderUserManager(overlay);
+    } else {
+      this._renderRuleEditor(overlay);
+    }
 
-    const form = document.createElement("div");
-    form.style.cssText =
-      "display:flex;flex-direction:column;gap:12px;min-width:400px;";
+    return overlay;
+  }
 
-    // Rule Name
-    const nameField = this._createTextField("Rule Name", this._name, (v) => {
-      this._name = v;
-    });
-    nameField.setAttribute("required", "");
-    form.appendChild(nameField);
+  _renderRuleEditor(overlay) {
+    const dialog = document.createElement("div");
+    dialog.className = "dialog";
 
-    // Entity Picker
-    const picker = document.createElement("ha-entity-picker");
-    picker.hass = this._hass;
-    picker.value = this._entityId;
-    picker.addEventListener("value-changed", (e) => {
-      if (e.detail.value) this._entityId = e.detail.value;
-    });
-    form.appendChild(picker);
+    let name = "", entityId = "", fromState = "", toState = "";
+    let subscribers = [];
+    let title = "", body = "", priority = 3, tags = "", cooldown = 60;
 
-    // Conditions Row
-    const conditionsRow = document.createElement("div");
-    conditionsRow.style.cssText = "display:flex;gap:8px;";
+    dialog.innerHTML = `
+      <h2>New Rule</h2>
+      <div class="form">
+        <label>Rule Name <input type="text" id="rule-name" value="" required></label>
+        <label>Entity ID <input type="text" id="rule-entity" value="" placeholder="e.g. sensor.temperature" required></label>
+        <div class="field-row">
+          <label>From State (optional) <input type="text" id="rule-from" value=""></label>
+          <label>To State (optional) <input type="text" id="rule-to" value=""></label>
+        </div>
+        <div class="section-label">Subscribers</div>
+        <div class="checkbox-group" id="subscribers-list"></div>
+        <div class="section-label">Message</div>
+        <label>Title (supports templates) <input type="text" id="rule-title" value=""></label>
+        <label>Body (supports templates) <textarea id="rule-body"></textarea></label>
+        <div class="section-label">Options</div>
+        <label>Priority (1-5) <input type="range" id="rule-priority" min="1" max="5" value="3"></label>
+        <label>Tags (comma separated) <input type="text" id="rule-tags" value=""></label>
+        <label>Cooldown (seconds) <input type="number" id="rule-cooldown" value="60"></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary" id="cancel-btn">Cancel</button>
+        <button class="primary" id="save-btn" disabled>Save</button>
+      </div>
+    `;
 
-    const fromField = this._createTextField(
-      "From State (optional)",
-      this._fromState,
-      (v) => { this._fromState = v; }
-    );
-    conditionsRow.appendChild(fromField);
+    overlay.appendChild(dialog);
 
-    const toField = this._createTextField(
-      "To State (optional)",
-      this._toState,
-      (v) => { this._toState = v; }
-    );
-    conditionsRow.appendChild(toField);
-    form.appendChild(conditionsRow);
-
-    // Subscribers section
-    const subsLabel = document.createElement("div");
-    subsLabel.className = "section-label";
-    subsLabel.style.cssText =
-      "font-weight:500;margin-top:8px;border-top:1px solid var(--divider-color);padding-top:8px;";
-    subsLabel.textContent = "Subscribers";
-    form.appendChild(subsLabel);
-
-    const subsList = document.createElement("div");
-    subsList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    // Subscribers
+    const subsList = dialog.querySelector("#subscribers-list");
     Object.entries(this._users).forEach(([userId, user]) => {
-      const formField = document.createElement("ha-formfield");
-      formField.label = user.name || userId;
-
-      const checkbox = document.createElement("ha-checkbox");
-      checkbox.checked = this._subscribers.includes(userId);
-      checkbox.addEventListener("change", () => {
-        if (checkbox.checked) {
-          this._subscribers = [...this._subscribers, userId];
-        } else {
-          this._subscribers = this._subscribers.filter((id) => id !== userId);
-        }
-      });
-      formField.appendChild(checkbox);
-      subsList.appendChild(formField);
+      const label = document.createElement("label");
+      label.className = "checkbox-label";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = subscribers.includes(userId);
+      cb.onchange = () => {
+        if (cb.checked) subscribers.push(userId);
+        else subscribers = subscribers.filter((id) => id !== userId);
+      };
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(user.name || userId));
+      subsList.appendChild(label);
     });
-    form.appendChild(subsList);
 
-    // Message section
-    const msgLabel = document.createElement("div");
-    msgLabel.className = "section-label";
-    msgLabel.style.cssText =
-      "font-weight:500;margin-top:8px;border-top:1px solid var(--divider-color);padding-top:8px;";
-    msgLabel.textContent = "Message";
-    form.appendChild(msgLabel);
+    const saveBtn = dialog.querySelector("#save-btn");
+    const nameInput = dialog.querySelector("#rule-name");
+    const entityInput = dialog.querySelector("#rule-entity");
+    const priorityInput = dialog.querySelector("#rule-priority");
+    const priorityDisplay = document.createElement("span");
+    priorityInput.parentNode.appendChild(priorityDisplay);
 
-    const titleField = this._createTextField(
-      "Title (supports templates)",
-      this._title,
-      (v) => { this._title = v; }
-    );
-    form.appendChild(titleField);
-
-    const bodyArea = document.createElement("ha-textarea");
-    bodyArea.label = "Body (supports templates)";
-    bodyArea.value = this._body;
-    bodyArea.addEventListener("input", (e) => {
-      this._body = e.target.value;
-    });
-    form.appendChild(bodyArea);
-
-    // Options section
-    const optsLabel = document.createElement("div");
-    optsLabel.className = "section-label";
-    optsLabel.style.cssText =
-      "font-weight:500;margin-top:8px;border-top:1px solid var(--divider-color);padding-top:8px;";
-    optsLabel.textContent = "Options";
-    form.appendChild(optsLabel);
-
-    const optionsRow = document.createElement("div");
-    optionsRow.style.cssText = "display:flex;align-items:center;gap:16px;";
-
-    const slider = document.createElement("ha-slider");
-    slider.value = this._priority;
-    slider.min = 1;
-    slider.max = 5;
-    slider.step = 1;
-    slider.setAttribute("pin", "");
-    slider.addEventListener("change", (e) => {
-      this._priority = parseInt(e.target.value);
-      priorityLabel.textContent = `Priority: ${this._priority}`;
-    });
-    optionsRow.appendChild(slider);
-
-    const priorityLabel = document.createElement("span");
-    priorityLabel.textContent = `Priority: ${this._priority}`;
-    optionsRow.appendChild(priorityLabel);
-    form.appendChild(optionsRow);
-
-    const tagsField = this._createTextField(
-      "Tags (comma separated)",
-      this._tags,
-      (v) => { this._tags = v; }
-    );
-    form.appendChild(tagsField);
-
-    const cooldownField = this._createTextField("Cooldown (seconds)", String(this._cooldown), (v) => {
-      this._cooldown = parseInt(v) || 0;
-    });
-    cooldownField.type = "number";
-    form.appendChild(cooldownField);
-
-    this._dialog.appendChild(form);
-
-    // Save button
-    const saveBtn = document.createElement("ha-button");
-    saveBtn.setAttribute("slot", "primaryAction");
-    saveBtn.textContent = this._saving ? "Saving\u2026" : "Save";
-    saveBtn.disabled = this._saving || !this._name || !this._entityId;
-    saveBtn.addEventListener("click", () => this._save());
-    this._dialog.appendChild(saveBtn);
-
-    // Cancel button
-    const cancelBtn = document.createElement("ha-button");
-    cancelBtn.setAttribute("slot", "secondaryAction");
-    cancelBtn.textContent = "Cancel";
-    cancelBtn.addEventListener("click", () => {
-      this.dispatchEvent(new CustomEvent("dialog-closed"));
-    });
-    this._dialog.appendChild(cancelBtn);
-
-    this.appendChild(this._dialog);
-  }
-
-  _createTextField(label, value, onChange) {
-    const field = document.createElement("ha-textfield");
-    field.label = label;
-    field.value = value;
-    field.addEventListener("input", (e) => {
-      onChange(e.target.value);
-      this._updateSaveButton();
-    });
-    return field;
-  }
-
-  _updateSaveButton() {
-    if (!this._dialog) return;
-    const btns = this._dialog.querySelectorAll('ha-button[slot="primaryAction"]');
-    btns.forEach((btn) => {
-      btn.disabled = this._saving || !this._name || !this._entityId;
-    });
-  }
-
-  async _save() {
-    this._saving = true;
-    this._updateSaveButton();
-    const ruleData = {
-      name: this._name,
-      entity_id: this._entityId,
-      conditions: {
-        from_state: this._fromState || null,
-        to_state: this._toState || null,
-      },
-      subscribers: this._subscribers,
-      message: {
-        title: this._title,
-        body: this._body,
-        priority: this._priority,
-        tags: this._tags,
-      },
-      cooldown_seconds: this._cooldown,
-      enabled: true,
+    const updateSaveBtn = () => {
+      saveBtn.disabled = !nameInput.value || !entityInput.value;
     };
 
-    try {
-      if (this._editMode) {
-        await this._hass.callWS({
-          type: "ntfy_alerts/update_rule",
-          rule_id: this._rule.rule_id,
-          updates: ruleData,
-        });
-      } else {
+    const updatePriority = () => {
+      priorityDisplay.textContent = ` ${priorityInput.value}`;
+    };
+
+    nameInput.oninput = updateSaveBtn;
+    entityInput.oninput = updateSaveBtn;
+    priorityInput.oninput = updatePriority;
+    updatePriority();
+
+    saveBtn.onclick = async () => {
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving\u2026";
+      try {
         await this._hass.callWS({
           type: "ntfy_alerts/save_rule",
-          rule: ruleData,
+          rule: {
+            name: nameInput.value,
+            entity_id: entityInput.value,
+            conditions: {
+              from_state: dialog.querySelector("#rule-from").value || null,
+              to_state: dialog.querySelector("#rule-to").value || null,
+            },
+            subscribers,
+            message: {
+              title: dialog.querySelector("#rule-title").value,
+              body: dialog.querySelector("#rule-body").value,
+              priority: parseInt(priorityInput.value),
+              tags: dialog.querySelector("#rule-tags").value,
+            },
+            cooldown_seconds: parseInt(dialog.querySelector("#rule-cooldown").value) || 60,
+            enabled: true,
+          },
         });
+        this._closeDialog();
+        this._loadRules();
+      } catch (e) {
+        alert("Failed to save rule: " + (e?.message || e));
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save";
       }
-      this.dispatchEvent(new CustomEvent("dialog-closed"));
-    } catch (e) {
-      alert("Failed to save rule: " + (e.message || e));
-    }
-    this._saving = false;
-  }
-}
+    };
 
-customElements.define("ntfy-rule-editor", NtfyRuleEditor);
-
-class NtfyUserManager extends HTMLElement {
-  constructor() {
-    super();
-    this._hass = null;
-    this._users = {};
-    this._newName = "";
-    this._newTopic = "";
-    this._dialog = null;
+    dialog.querySelector("#cancel-btn").onclick = () => this._closeDialog();
   }
 
-  connectedCallback() {
-    this.render();
-  }
+  _renderUserManager(overlay) {
+    const dialog = document.createElement("div");
+    dialog.className = "dialog";
 
-  disconnectedCallback() {
-    if (this._dialog) {
-      this._dialog.remove();
-      this._dialog = null;
-    }
-  }
+    let newName = "", newTopic = "";
 
-  render() {
-    this.innerHTML = "";
+    dialog.innerHTML = `
+      <h2>Manage Users</h2>
+      <div class="user-list" id="user-list"></div>
+      <div class="section-label">Add User</div>
+      <div class="field-row">
+        <label>Name <input type="text" id="new-name" value=""></label>
+        <label>Topic <input type="text" id="new-topic" value=""></label>
+        <button class="primary" id="add-btn" style="margin-top:18px" disabled>Add</button>
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary" id="close-btn">Close</button>
+      </div>
+    `;
 
-    this._dialog = document.createElement("ha-dialog");
-    this._dialog.setAttribute("open", "");
-    this._dialog.heading = "Manage Users";
-    this._dialog.addEventListener("closed", () => {
-      this.dispatchEvent(new CustomEvent("dialog-closed"));
-    });
+    overlay.appendChild(dialog);
 
-    const container = document.createElement("div");
-    container.style.cssText = "display:flex;flex-direction:column;gap:16px;min-width:400px;";
-
-    // Existing users
-    const userList = document.createElement("div");
-    userList.className = "user-list";
-    userList.style.cssText = "display:flex;flex-direction:column;gap:8px;";
-
-    Object.entries(this._users).forEach(([userId, user]) => {
-      const userRow = document.createElement("div");
-      userRow.className = "user-row";
-      userRow.style.cssText =
-        "display:flex;align-items:center;justify-content:space-between;padding:8px;border:1px solid var(--divider-color);border-radius:8px;";
-
-      const userInfo = document.createElement("div");
-      userInfo.className = "user-info";
-      userInfo.style.cssText = "display:flex;flex-direction:column;";
-
-      const userName = document.createElement("span");
-      userName.className = "user-name";
-      userName.style.cssText = "font-weight:500;";
-      userName.textContent = user.name;
-      userInfo.appendChild(userName);
-
-      const userTopic = document.createElement("span");
-      userTopic.className = "user-topic";
-      userTopic.style.cssText = "font-size:13px;color:var(--secondary-text-color);";
-      userTopic.textContent = user.topic;
-      userInfo.appendChild(userTopic);
-
-      userRow.appendChild(userInfo);
-
-      const removeBtn = document.createElement("ha-button");
-      removeBtn.className = "remove-btn";
-      removeBtn.style.cssText = "color:var(--error-color);min-width:0;padding:0 8px;";
-      removeBtn.textContent = "✕";
-      removeBtn.addEventListener("click", () => this._removeUser(userId));
-      userRow.appendChild(removeBtn);
-
-      userList.appendChild(userRow);
-    });
-
-    container.appendChild(userList);
-
-    // Add user form
-    const addRow = document.createElement("div");
-    addRow.className = "add-row";
-    addRow.style.cssText = "display:flex;gap:8px;align-items:flex-start;";
-
-    const nameField = document.createElement("ha-textfield");
-    nameField.label = "Name";
-    nameField.value = this._newName;
-    nameField.addEventListener("input", (e) => { this._newName = e.target.value; });
-    nameField.style.cssText = "flex:1;";
-    addRow.appendChild(nameField);
-
-    const topicField = document.createElement("ha-textfield");
-    topicField.label = "Topic";
-    topicField.value = this._newTopic;
-    topicField.addEventListener("input", (e) => { this._newTopic = e.target.value; });
-    topicField.style.cssText = "flex:1;";
-    addRow.appendChild(topicField);
-
-    const addBtn = document.createElement("ha-button");
-    addBtn.setAttribute("unelevated", "");
-    addBtn.textContent = "Add";
-    addBtn.addEventListener("click", () => this._addUser());
-    addRow.appendChild(addBtn);
-
-    container.appendChild(addRow);
-
-    this._dialog.appendChild(container);
-
-    // Close button
-    const closeBtn = document.createElement("ha-button");
-    closeBtn.setAttribute("slot", "primaryAction");
-    closeBtn.textContent = "Close";
-    closeBtn.addEventListener("click", () => {
-      this.dispatchEvent(new CustomEvent("dialog-closed"));
-    });
-    this._dialog.appendChild(closeBtn);
-
-    this.appendChild(this._dialog);
-  }
-
-  async _addUser() {
-    if (!this._newName || !this._newTopic) return;
-    const name = this._newName;
-    const topic = this._newTopic;
-    this._newName = "";
-    this._newTopic = "";
-    try {
-      const result = await this._hass.callWS({
-        type: "ntfy_alerts/add_user",
-        name: name,
-        topic: topic,
+    const renderUsers = () => {
+      const userList = dialog.querySelector("#user-list");
+      userList.innerHTML = Object.entries(this._users).map(([userId, user]) => `
+        <div class="user-row">
+          <div class="user-info">
+            <span class="user-name">${this._escapeHtml(user.name)}</span>
+            <span class="user-topic">${this._escapeHtml(user.topic)}</span>
+          </div>
+          <button class="delete-btn" data-user-id="${this._escapeHtml(userId)}">✕</button>
+        </div>
+      `).join("");
+      userList.querySelectorAll(".delete-btn").forEach((btn) => {
+        btn.onclick = () => this._removeUser(btn.dataset.userId);
       });
-      this._users[result.user_id] = { name, topic };
-      this.dispatchEvent(new CustomEvent("users-changed"));
-      this.render();
-    } catch (e) {
-      alert("Failed to add user: " + (e.message || e));
-    }
+    };
+
+    renderUsers();
+
+    const nameInput = dialog.querySelector("#new-name");
+    const topicInput = dialog.querySelector("#new-topic");
+    const addBtn = dialog.querySelector("#add-btn");
+
+    const updateAddBtn = () => {
+      addBtn.disabled = !nameInput.value || !topicInput.value;
+    };
+
+    nameInput.oninput = updateAddBtn;
+    topicInput.oninput = updateAddBtn;
+
+    addBtn.onclick = async () => {
+      const name = nameInput.value;
+      const topic = topicInput.value;
+      nameInput.value = "";
+      topicInput.value = "";
+      updateAddBtn();
+      try {
+        const result = await this._hass.callWS({
+          type: "ntfy_alerts/add_user",
+          name,
+          topic,
+        });
+        this._users[result.user_id] = { name, topic };
+        renderUsers();
+        this._loadRules();
+      } catch (e) {
+        alert("Failed to add user: " + (e?.message || e));
+      }
+    };
+
+    dialog.querySelector("#close-btn").onclick = () => this._closeDialog();
   }
 
   async _removeUser(userId) {
@@ -744,12 +653,15 @@ class NtfyUserManager extends HTMLElement {
         user_id: userId,
       });
       delete this._users[userId];
-      this.dispatchEvent(new CustomEvent("users-changed"));
-      this.render();
+      this._loadRules();
+      // Re-render user manager if open
+      if (this._dialog && this._dialog.querySelector("#user-list")) {
+        this._renderUserManager(this._dialog);
+      }
     } catch (e) {
-      alert("Failed to remove user: " + (e.message || e));
+      alert("Failed to remove user: " + (e?.message || e));
     }
   }
 }
 
-customElements.define("ntfy-user-manager", NtfyUserManager);
+customElements.define("ntfy-alerts-panel", NtfyAlertsPanel);
