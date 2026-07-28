@@ -1,6 +1,10 @@
 class NtfyAlertsPanel extends HTMLElement {
   constructor() {
     super();
+    this._init();
+  }
+
+  _init() {
     this._hass = null;
     this._rules = [];
     this._users = {};
@@ -668,10 +672,13 @@ const origCE = Document.prototype.createElement;
 Document.prototype.createElement = function (tagName, options) {
   if (tagName === "ntfy-alerts-panel") {
     try {
-      return origCE.call(this, tagName, options);
+      const el = origCE.call(this, tagName, options);
+      if (el instanceof NtfyAlertsPanel) return el;
     } catch (e) {
-      return Reflect.construct(HTMLElement, [], NtfyAlertsPanel);
     }
+    const el = Reflect.construct(HTMLElement, [], NtfyAlertsPanel);
+    el._init();
+    return el;
   }
   return origCE.call(this, tagName, options);
 };
