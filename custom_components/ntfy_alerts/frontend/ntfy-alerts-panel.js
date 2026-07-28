@@ -664,9 +664,14 @@ class NtfyAlertsPanel extends HTMLElement {
   }
 }
 
-if (!customElements.get("ntfy-alerts-panel")) {
-  console.log("Defining ntfy-alerts-panel");
-  customElements.define("ntfy-alerts-panel", NtfyAlertsPanel);
-} else {
-  console.warn("ntfy-alerts-panel already defined, constructor:", customElements.get("ntfy-alerts-panel").name);
-}
+const origCE = Document.prototype.createElement;
+Document.prototype.createElement = function (tagName, options) {
+  if (tagName === "ntfy-alerts-panel") {
+    try {
+      return origCE.call(this, tagName, options);
+    } catch (e) {
+      return Reflect.construct(HTMLElement, [], NtfyAlertsPanel);
+    }
+  }
+  return origCE.call(this, tagName, options);
+};
