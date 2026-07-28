@@ -385,7 +385,7 @@ class NtfyAlertsPanel extends HTMLElement {
   }
 
   _ws(msg) {
-    if (this._hass.callWS) return this._ws(msg);
+    if (this._hass.callWS) return this._hass.callWS(msg);
     if (this._hass.connection && this._hass.connection.sendMessagePromise) {
       return this._hass.connection.sendMessagePromise(msg);
     }
