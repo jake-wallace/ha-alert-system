@@ -18,6 +18,7 @@ the browser after each JS edit — no more HA restarts for frontend work.
 import os
 import sys
 import time
+import webbrowser
 import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
@@ -71,6 +72,9 @@ def main():
     print(f"  Serving: {FRONTEND_DIR}")
     print(f"  Set NTFY_DEV_URL=http://localhost:{PORT}/ntfy-alerts-panel.js")
     print(f"  and restart HA once. Then just refresh the browser after each edit.\n")
+    print(f"  Opening test panel in browser...\n")
+
+    webbrowser.open(f"http://localhost:{PORT}/test_panel.html")
 
     try:
         server.serve_forever()
