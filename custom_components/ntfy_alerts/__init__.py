@@ -72,15 +72,11 @@ async def async_get_rules(
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
-    _LOGGER.warning("async_get_rules called by %s", msg.get("id"))
     try:
         rules = await async_load_rules(hass)
-        _LOGGER.warning("async_get_rules loaded %d rules", len(rules))
         config = hass.data.get(DOMAIN, {}).get("config", {})
         users = config.get("users", {})
-        _LOGGER.warning("async_get_rules sending result")
         connection.send_result(msg["id"], {"rules": rules, "users": users})
-        _LOGGER.warning("async_get_rules result sent successfully")
     except Exception as err:
         _LOGGER.exception("Error in async_get_rules: %s", err)
         connection.send_error(msg["id"], "internal_error", str(err))
