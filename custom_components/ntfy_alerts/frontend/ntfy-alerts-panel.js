@@ -385,11 +385,18 @@ class NtfyAlertsPanel extends HTMLElement {
   }
 
   _ws(msg) {
-    if (this._hass.callWS) return this._hass.callWS(msg);
-    if (this._hass.connection && this._hass.connection.sendMessagePromise) {
-      return this._hass.connection.sendMessagePromise(msg);
+    var promise;
+    if (this._hass.callWS) {
+      promise = this._hass.callWS(msg);
+    } else if (this._hass.connection && this._hass.connection.sendMessagePromise) {
+      promise = this._hass.connection.sendMessagePromise(msg);
+    } else {
+      return Promise.reject(new Error("WebSocket not available"));
     }
-    throw new Error("WebSocket not available");
+    return promise.catch(function (err) {
+      if (err instanceof Error) throw err;
+      throw new Error("WS error: " + (err && err.message ? err.message : JSON.stringify(err)));
+    });
   }
 
   async _loadRules() {
