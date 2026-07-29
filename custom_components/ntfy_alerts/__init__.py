@@ -77,7 +77,7 @@ async def async_get_rules(
         rules = await async_load_rules(hass)
         config = hass.data.get(DOMAIN, {}).get("config", {})
         users = config.get("users", {})
-        connection.send_result(msg["id"], {"rules": rules, "users": users})
+        connection.send_result(msg["id"], {"rules": rules, "users": users, "config": {"ntfy_base_topic": config.get("ntfy_base_topic", "")}})
     except Exception as err:
         _LOGGER.exception("Error in async_get_rules: %s", err)
         connection.send_error(msg["id"], "internal_error", str(err))
@@ -100,7 +100,7 @@ async def async_save_rule(
     vol.Required("updates"): dict,
 })
 @async_response
-async def async_update_rule(
+async def async_handle_update_rule(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
@@ -111,7 +111,7 @@ async def async_update_rule(
 
 @websocket_command({vol.Required("type"): WS_TYPE_DELETE_RULE, vol.Required("rule_id"): str})
 @async_response
-async def async_delete_rule(
+async def async_handle_delete_rule(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
@@ -197,8 +197,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async_register_command(hass, async_get_rules)
     async_register_command(hass, async_save_rule)
-    async_register_command(hass, async_update_rule)
-    async_register_command(hass, async_delete_rule)
+    async_register_command(hass, async_handle_update_rule)
+    async_register_command(hass, async_handle_delete_rule)
     async_register_command(hass, async_add_user)
     async_register_command(hass, async_remove_user)
 

@@ -83,7 +83,7 @@ const mockHass = {
 async function handleWS(msg) {
   switch (msg.type) {
     case "ntfy_alerts/get_rules":
-      return { rules: store.rules, users: store.users };
+      return { rules: store.rules, users: store.users, config: { ntfy_base_topic: "ha_alerts" } };
     case "ntfy_alerts/save_rule": {
       const rule = { ...msg.rule, rule_id: "rule_" + store.nextRuleId++, enabled: true };
       store.rules.push(rule);

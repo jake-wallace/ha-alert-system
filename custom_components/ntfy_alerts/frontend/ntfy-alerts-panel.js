@@ -13,6 +13,7 @@ class NtfyAlertsPanel extends HTMLElement {
     this._retryCount = 0;
     this._retryTimer = null;
     this._haUsersCache = null;
+    this._ntfyBaseTopic = "";
     this.render();
   }
 
@@ -588,6 +589,7 @@ class NtfyAlertsPanel extends HTMLElement {
       });
       this._rules = result.rules || [];
       this._users = result.users || {};
+      this._ntfyBaseTopic = (result.config && result.config.ntfy_base_topic) || "";
       this._retryCount = 0;
       this._loadError = false;
       this._loading = false;
@@ -835,6 +837,12 @@ class NtfyAlertsPanel extends HTMLElement {
     var topicList = document.createElement("datalist");
     topicList.id = "topic-list";
     var seen = {};
+    if (this._ntfyBaseTopic) {
+      seen[this._ntfyBaseTopic] = true;
+      var baseOpt = document.createElement("option");
+      baseOpt.value = this._ntfyBaseTopic;
+      topicList.appendChild(baseOpt);
+    }
     Object.keys(this._users).forEach(function (uid) {
       var topic = this._users[uid].topic;
       if (topic && !seen[topic]) {
