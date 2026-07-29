@@ -832,6 +832,21 @@ class NtfyAlertsPanel extends HTMLElement {
       updateAddBtn();
     });
 
+    var topicList = document.createElement("datalist");
+    topicList.id = "topic-list";
+    var seen = {};
+    Object.keys(this._users).forEach(function (uid) {
+      var topic = this._users[uid].topic;
+      if (topic && !seen[topic]) {
+        seen[topic] = true;
+        var opt = document.createElement("option");
+        opt.value = topic;
+        topicList.appendChild(opt);
+      }
+    }, this);
+    topicInput.setAttribute("list", "topic-list");
+    topicInput.parentNode.appendChild(topicList);
+
     addBtn.onclick = async () => {
       const name = nameInput.value;
       const topic = topicInput.value;
