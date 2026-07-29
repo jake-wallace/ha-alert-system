@@ -355,6 +355,83 @@ class NtfyAlertsPanel extends HTMLElement {
     return div.innerHTML;
   }
 
+  _getFilteredEntities(prefix) {
+    if (!this._hass || !this._hass.states) return [];
+    var ids = Object.keys(this._hass.states);
+    if (!prefix) return ids.slice(0, 50);
+    var lower = prefix.toLowerCase();
+    return ids.filter(function (id) { return id.indexOf(lower) !== -1; }).slice(0, 50);
+  }
+
+  _renderEntityAutocomplete(input) {
+    var container = document.createElement("div");
+    container.style.cssText = "position:relative;display:block;width:100%";
+    input.parentNode.insertBefore(container, input);
+    container.appendChild(input);
+
+    var list = document.createElement("div");
+    list.style.cssText =
+      "position:absolute;top:100%;left:0;right:0;z-index:100;" +
+      "max-height:200px;overflow-y:auto;" +
+      "background:var(--card-background-color,#fff);" +
+      "border:1px solid var(--divider-color,#ddd);" +
+      "border-radius:4px;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.15)";
+    container.appendChild(list);
+
+    var selectedIndex = -1;
+
+    function render(prefix) {
+      var entities = this._getFilteredEntities(prefix);
+      list.innerHTML = "";
+      selectedIndex = -1;
+      if (entities.length === 0) { list.style.display = "none"; return; }
+      entities.forEach(function (id, i) {
+        var item = document.createElement("div");
+        item.textContent = id;
+        item.style.cssText =
+          "padding:8px 12px;cursor:pointer;font-size:14px;" +
+          "color:var(--primary-text-color,#333)";
+        item.onmouseover = function () { item.style.background = "var(--secondary-color,rgba(0,0,0,0.05))"; };
+        item.onmouseout = function () { item.style.background = ""; };
+        item.onclick = function () {
+          input.value = id;
+          list.style.display = "none";
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        };
+        list.appendChild(item);
+      });
+      list.style.display = "block";
+    }
+
+    var self = this;
+    input.addEventListener("focus", function () { render.call(self, input.value); });
+    input.addEventListener("input", function () { render.call(self, input.value); });
+    input.addEventListener("blur", function () {
+      setTimeout(function () { list.style.display = "none"; }, 150);
+    });
+    input.addEventListener("keydown", function (e) {
+      var items = list.querySelectorAll("div");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+        items.forEach(function (el, i) { el.style.background = i === selectedIndex ? "var(--primary-color,#03a9f4)" : ""; });
+        if (items[selectedIndex]) items[selectedIndex].scrollIntoView({ block: "nearest" });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, -1);
+        items.forEach(function (el, i) { el.style.background = i === selectedIndex ? "var(--primary-color,#03a9f4)" : ""; });
+        if (items[selectedIndex]) items[selectedIndex].scrollIntoView({ block: "nearest" });
+      } else if (e.key === "Enter" && selectedIndex >= 0 && items[selectedIndex]) {
+        e.preventDefault();
+        input.value = items[selectedIndex].textContent;
+        list.style.display = "none";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      } else if (e.key === "Escape") {
+        list.style.display = "none";
+      }
+    });
+  }
+
   _renderContent() {
     const content = this.querySelector("#content");
     if (!content) return;
@@ -539,6 +616,7 @@ class NtfyAlertsPanel extends HTMLElement {
     const saveBtn = dialog.querySelector("#save-btn");
     const nameInput = dialog.querySelector("#rule-name");
     const entityInput = dialog.querySelector("#rule-entity");
+    this._renderEntityAutocomplete(entityInput);
     const priorityInput = dialog.querySelector("#rule-priority");
     const priorityDisplay = document.createElement("span");
     priorityInput.parentNode.appendChild(priorityDisplay);
