@@ -250,7 +250,11 @@ class NtfyAlertsPanel extends HTMLElement {
           width: 100%;
           box-sizing: border-box;
         }
-        .ntfy-dialog input:focus, .ntfy-dialog textarea:focus {
+        .ntfy-dialog select option {
+          background: var(--card-background-color, #fff);
+          color: var(--primary-text-color, #333);
+        }
+        .ntfy-dialog input:focus, .ntfy-dialog textarea:focus, .ntfy-dialog select:focus {
           outline: none;
           border-color: var(--primary-color, #03a9f4);
         }
@@ -795,6 +799,7 @@ class NtfyAlertsPanel extends HTMLElement {
     priorityInput.oninput = updatePriority;
     updatePriority();
 
+    var self = this;
     saveBtn.onclick = async function () {
       saveBtn.disabled = true;
       saveBtn.textContent = "Saving\u2026";
@@ -817,20 +822,20 @@ class NtfyAlertsPanel extends HTMLElement {
         };
         if (isEdit) {
           payload.enabled = rule.enabled !== false;
-          await this._ws({
+          await self._ws({
             type: "ntfy_alerts/update_rule",
             rule_id: rule.rule_id,
             updates: payload,
           });
         } else {
           payload.enabled = true;
-          await this._ws({
+          await self._ws({
             type: "ntfy_alerts/save_rule",
             rule: payload,
           });
         }
-        this._closeDialog();
-        this._loadRules();
+        self._closeDialog();
+        self._loadRules();
       } catch (e) {
         alert("Failed to save rule: " + (e && e.message ? e.message : e));
         saveBtn.disabled = false;
