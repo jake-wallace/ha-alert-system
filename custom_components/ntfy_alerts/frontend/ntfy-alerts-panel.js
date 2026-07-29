@@ -385,7 +385,7 @@ class NtfyAlertsPanel extends HTMLElement {
     return ids.map(function (id) {
       var state = self._hass.states[id];
       var name = (state && state.attributes && state.attributes.friendly_name) || id;
-      return { id: id, name: name };
+      return { id: id, name: name, state: state ? state.state : "" };
     });
   }
 
@@ -421,7 +421,8 @@ class NtfyAlertsPanel extends HTMLElement {
         idLine.style.fontSize = "13px";
         idLine.style.color = "var(--primary-text-color,#333)";
         var nameLine = document.createElement("div");
-        nameLine.textContent = entity.name;
+        var stateText = entity.state ? " [" + entity.state + "]" : "";
+        nameLine.textContent = entity.name + stateText;
         nameLine.style.fontSize = "11px";
         nameLine.style.color = "var(--secondary-text-color)";
         item.appendChild(idLine);
