@@ -12,6 +12,7 @@ class NtfyAlertsPanel extends HTMLElement {
     this._loadError = false;
     this._retryCount = 0;
     this._retryTimer = null;
+    this._haUsersCache = null;
     this.render();
   }
 
@@ -432,6 +433,106 @@ class NtfyAlertsPanel extends HTMLElement {
     });
   }
 
+  async _fetchHAUsers() {
+    if (this._haUsersCache) return this._haUsersCache;
+    try {
+      var result = await this._ws({ type: "config/auth/list" });
+      this._haUsersCache = result || [];
+      return this._haUsersCache;
+    } catch (e) {
+      console.warn("Failed to fetch HA users:", e);
+      return [];
+    }
+  }
+
+  _renderUserAutocomplete(input, onSelect) {
+    var container = document.createElement("div");
+    container.style.cssText = "position:relative;display:block;width:100%";
+    input.parentNode.insertBefore(container, input);
+    container.appendChild(input);
+
+    var list = document.createElement("div");
+    list.style.cssText =
+      "position:absolute;top:100%;left:0;right:0;z-index:100;" +
+      "max-height:200px;overflow-y:auto;" +
+      "background:var(--card-background-color,#fff);" +
+      "border:1px solid var(--divider-color,#ddd);" +
+      "border-radius:4px;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.15)";
+    container.appendChild(list);
+
+    var haUsers = [];
+    var selectedIndex = -1;
+
+    function render(prefix) {
+      list.innerHTML = "";
+      selectedIndex = -1;
+      var filtered = haUsers;
+      if (prefix) {
+        var lower = prefix.toLowerCase();
+        filtered = haUsers.filter(function (u) { return u.name && u.name.toLowerCase().indexOf(lower) !== -1; });
+      }
+      if (filtered.length === 0) { list.style.display = "none"; return; }
+      filtered.forEach(function (user, i) {
+        var item = document.createElement("div");
+        item.textContent = user.name;
+        item.title = "HA user";
+        item.style.cssText =
+          "padding:8px 12px;cursor:pointer;font-size:14px;" +
+          "color:var(--primary-text-color,#333)";
+        item.onmouseover = function () { item.style.background = "var(--secondary-color,rgba(0,0,0,0.05))"; };
+        item.onmouseout = function () { item.style.background = ""; };
+        item.onclick = function () {
+          input.value = user.name;
+          list.style.display = "none";
+          if (onSelect) onSelect(user);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        };
+        list.appendChild(item);
+      });
+      list.style.display = "block";
+    }
+
+    var self = this;
+    input.addEventListener("focus", function () {
+      if (haUsers.length === 0) {
+        self._fetchHAUsers().then(function (users) {
+          haUsers = users;
+          render.call(self, input.value);
+        });
+      } else {
+        render.call(self, input.value);
+      }
+    });
+    input.addEventListener("input", function () { render.call(self, input.value); });
+    input.addEventListener("blur", function () {
+      setTimeout(function () { list.style.display = "none"; }, 150);
+    });
+    input.addEventListener("keydown", function (e) {
+      var items = list.querySelectorAll("div");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+        items.forEach(function (el, i) { el.style.background = i === selectedIndex ? "var(--primary-color,#03a9f4)" : ""; });
+        if (items[selectedIndex]) items[selectedIndex].scrollIntoView({ block: "nearest" });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, -1);
+        items.forEach(function (el, i) { el.style.background = i === selectedIndex ? "var(--primary-color,#03a9f4)" : ""; });
+        if (items[selectedIndex]) items[selectedIndex].scrollIntoView({ block: "nearest" });
+      } else if (e.key === "Enter" && selectedIndex >= 0 && items[selectedIndex]) {
+        e.preventDefault();
+        var selectedName = items[selectedIndex].textContent;
+        input.value = selectedName;
+        list.style.display = "none";
+        var user = haUsers.find(function (u) { return u.name === selectedName; });
+        if (user && onSelect) onSelect(user);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      } else if (e.key === "Escape") {
+        list.style.display = "none";
+      }
+    });
+  }
+
   _renderContent() {
     const content = this.querySelector("#content");
     if (!content) return;
@@ -717,9 +818,19 @@ class NtfyAlertsPanel extends HTMLElement {
     const updateAddBtn = () => {
       addBtn.disabled = !nameInput.value || !topicInput.value;
     };
-
     nameInput.oninput = updateAddBtn;
     topicInput.oninput = updateAddBtn;
+
+    var self = this;
+    this._renderUserAutocomplete(nameInput, function (user) {
+      for (var uid in self._users) {
+        if (self._users[uid].name === user.name) {
+          topicInput.value = self._users[uid].topic || "";
+          break;
+        }
+      }
+      updateAddBtn();
+    });
 
     addBtn.onclick = async () => {
       const name = nameInput.value;
