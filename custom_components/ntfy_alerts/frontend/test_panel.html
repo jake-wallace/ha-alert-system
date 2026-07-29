@@ -107,6 +107,8 @@ async function handleWS(msg) {
       delete store.users[msg.user_id];
       return { success: true };
     }
+    case "ntfy_alerts/send_test":
+      return { success: true };
     case "config/auth/list":
       return [
         { id: "ha_user_1", name: "Alice", is_owner: true, is_active: true },

@@ -69,7 +69,7 @@ def _get_subscriber_topics(
     return topics
 
 
-async def _send_ntfy_notification(
+async def send_ntfy_notification(
     session: aiohttp.ClientSession,
     server_url: str,
     topic: str,
@@ -173,7 +173,7 @@ async def async_handle_state_change(
             rendered_body = _render_template(hass, body, render_context)
             results = await asyncio.gather(
                 *[
-                    _send_ntfy_notification(
+                    send_ntfy_notification(
                         session, server_url, topic, rendered_title, rendered_body,
                         priority, tags, auth_token,
                     )
@@ -194,6 +194,24 @@ def _render_template(
     except Exception as exc:
         _LOGGER.warning("Template rendering failed: %s", exc)
         return template_str
+
+
+async def async_send_test_notification(
+    hass: HomeAssistant, topic: str
+) -> bool:
+    config_data = hass.data.get(DOMAIN, {}).get("config", {})
+    server_url = config_data.get(CONF_NTFY_SERVER_URL, NTFY_API_URL)
+    auth_token = config_data.get(CONF_AUTH_TOKEN, "")
+    try:
+        async with aiohttp.ClientSession() as session:
+            return await send_ntfy_notification(
+                session, server_url, topic,
+                "ntfy Alerts Test", "This is a test notification from ntfy Alerts.",
+                3, "test", auth_token,
+            )
+    except Exception as exc:
+        _LOGGER.error("Test notification failed: %s", exc)
+        return False
 
 
 def _update_sensor_data(

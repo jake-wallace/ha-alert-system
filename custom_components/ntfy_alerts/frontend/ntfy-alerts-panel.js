@@ -151,8 +151,17 @@ class NtfyAlertsPanel extends HTMLElement {
           padding: 4px 8px;
           border-radius: 4px;
         }
-        .ntfy-delete-btn:hover {
+        .ntfy-delete-btn:hover, .ntfy-edit-btn:hover {
           background: var(--secondary-color, rgba(0,0,0,0.05));
+        }
+        .ntfy-edit-btn {
+          color: var(--primary-color, #03a9f4);
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 16px;
+          padding: 4px 8px;
+          border-radius: 4px;
         }
         .ntfy-empty, .ntfy-error {
           text-align: center;
@@ -308,6 +317,7 @@ class NtfyAlertsPanel extends HTMLElement {
       <div class="ntfy-toolbar">
         <div class="ntfy-toolbar-title">ntfy Alerts</div>
         <div class="ntfy-toolbar-actions">
+          <button class="ntfy-btn ntfy-secondary" id="test-btn">Test</button>
           <button class="ntfy-btn ntfy-secondary" id="users-btn">Users</button>
           <button class="ntfy-btn ntfy-unelevated" id="new-rule-btn">＋ New Rule</button>
         </div>
@@ -315,6 +325,7 @@ class NtfyAlertsPanel extends HTMLElement {
       <div class="ntfy-content" id="content"></div>
     `;
 
+    this.querySelector("#test-btn").onclick = () => this._openTestDialog();
     this.querySelector("#users-btn").onclick = () => this._openUserManager();
     this.querySelector("#new-rule-btn").onclick = () => this._openNewRuleDialog();
     this._renderContent();
@@ -345,6 +356,7 @@ class NtfyAlertsPanel extends HTMLElement {
             <input type="checkbox" ${rule.enabled !== false ? "checked" : ""} data-rule-id="${this._escapeHtml(rule.rule_id)}">
             <span class="ntfy-slider"></span>
           </label>
+          <button class="ntfy-edit-btn" data-rule-id="${this._escapeHtml(rule.rule_id)}">✎</button>
           <button class="ntfy-delete-btn" data-rule-id="${this._escapeHtml(rule.rule_id)}">✕</button>
         </div>
       </div>
@@ -360,9 +372,17 @@ class NtfyAlertsPanel extends HTMLElement {
   _getFilteredEntities(prefix) {
     if (!this._hass || !this._hass.states) return [];
     var ids = Object.keys(this._hass.states);
-    if (!prefix) return ids.slice(0, 50);
-    var lower = prefix.toLowerCase();
-    return ids.filter(function (id) { return id.indexOf(lower) !== -1; }).slice(0, 50);
+    if (prefix) {
+      var lower = prefix.toLowerCase();
+      ids = ids.filter(function (id) { return id.indexOf(lower) !== -1; });
+    }
+    ids = ids.slice(0, 50);
+    var self = this;
+    return ids.map(function (id) {
+      var state = self._hass.states[id];
+      var name = (state && state.attributes && state.attributes.friendly_name) || id;
+      return { id: id, name: name };
+    });
   }
 
   _renderEntityAutocomplete(input) {
@@ -387,16 +407,25 @@ class NtfyAlertsPanel extends HTMLElement {
       list.innerHTML = "";
       selectedIndex = -1;
       if (entities.length === 0) { list.style.display = "none"; return; }
-      entities.forEach(function (id, i) {
+      entities.forEach(function (entity, i) {
         var item = document.createElement("div");
-        item.textContent = id;
+        item.dataset.id = entity.id;
         item.style.cssText =
-          "padding:8px 12px;cursor:pointer;font-size:14px;" +
-          "color:var(--primary-text-color,#333)";
+          "padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--divider-color,#eee)";
+        var idLine = document.createElement("div");
+        idLine.textContent = entity.id;
+        idLine.style.fontSize = "13px";
+        idLine.style.color = "var(--primary-text-color,#333)";
+        var nameLine = document.createElement("div");
+        nameLine.textContent = entity.name;
+        nameLine.style.fontSize = "11px";
+        nameLine.style.color = "var(--secondary-text-color)";
+        item.appendChild(idLine);
+        item.appendChild(nameLine);
         item.onmouseover = function () { item.style.background = "var(--secondary-color,rgba(0,0,0,0.05))"; };
         item.onmouseout = function () { item.style.background = ""; };
         item.onclick = function () {
-          input.value = id;
+          input.value = entity.id;
           list.style.display = "none";
           input.dispatchEvent(new Event("input", { bubbles: true }));
         };
@@ -412,7 +441,7 @@ class NtfyAlertsPanel extends HTMLElement {
       setTimeout(function () { list.style.display = "none"; }, 150);
     });
     input.addEventListener("keydown", function (e) {
-      var items = list.querySelectorAll("div");
+      var items = list.querySelectorAll("div[data-id]");
       if (e.key === "ArrowDown") {
         e.preventDefault();
         selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
@@ -425,7 +454,7 @@ class NtfyAlertsPanel extends HTMLElement {
         if (items[selectedIndex]) items[selectedIndex].scrollIntoView({ block: "nearest" });
       } else if (e.key === "Enter" && selectedIndex >= 0 && items[selectedIndex]) {
         e.preventDefault();
-        input.value = items[selectedIndex].textContent;
+        input.value = items[selectedIndex].dataset.id;
         list.style.display = "none";
         input.dispatchEvent(new Event("input", { bubbles: true }));
       } else if (e.key === "Escape") {
@@ -550,6 +579,9 @@ class NtfyAlertsPanel extends HTMLElement {
           this._toggleRule(cb.dataset.ruleId, cb.checked);
         };
       });
+      content.querySelectorAll(".ntfy-edit-btn").forEach((btn) => {
+        btn.onclick = () => this._openEditRuleDialog(btn.dataset.ruleId);
+      });
       content.querySelectorAll(".ntfy-delete-btn").forEach((btn) => {
         btn.onclick = () => this._deleteRule(btn.dataset.ruleId);
       });
@@ -632,12 +664,24 @@ class NtfyAlertsPanel extends HTMLElement {
 
   _openNewRuleDialog() {
     if (this._dialog) return;
-    this._dialog = this._createDialog(null);
+    this._dialog = this._createDialog(null, null);
+  }
+
+  _openEditRuleDialog(ruleId) {
+    if (this._dialog) return;
+    var rule = this._rules.find(function (r) { return r.rule_id === ruleId; });
+    if (!rule) return;
+    this._dialog = this._createDialog("edit", rule);
+  }
+
+  _openTestDialog() {
+    if (this._dialog) return;
+    this._dialog = this._createDialog("test", null);
   }
 
   _openUserManager() {
     if (this._dialog) return;
-    this._dialog = this._createDialog("users");
+    this._dialog = this._createDialog("users", null);
   }
 
   _closeDialog() {
@@ -647,7 +691,7 @@ class NtfyAlertsPanel extends HTMLElement {
     }
   }
 
-  _createDialog(type) {
+  _createDialog(type, rule) {
     const overlay = document.createElement("div");
     overlay.className = "ntfy-dialog-overlay";
     overlay.onclick = (e) => {
@@ -655,81 +699,95 @@ class NtfyAlertsPanel extends HTMLElement {
     };
     this.appendChild(overlay);
 
-    if (type === "users") {
+    if (type === "test") {
+      this._renderTestDialog(overlay);
+    } else if (type === "users") {
       this._renderUserManager(overlay);
+    } else if (type === "edit") {
+      this._renderRuleEditor(overlay, rule);
     } else {
-      this._renderRuleEditor(overlay);
+      this._renderRuleEditor(overlay, null);
     }
 
     return overlay;
   }
 
-  _renderRuleEditor(overlay) {
-    const dialog = document.createElement("div");
+  _renderRuleEditor(overlay, rule) {
+    var isEdit = rule ? true : false;
+
+    var defaults = {
+      name: isEdit ? rule.name : "",
+      entity_id: isEdit ? rule.entity_id : "",
+      from_state: (isEdit && rule.conditions && rule.conditions.from_state) || "",
+      to_state: (isEdit && rule.conditions && rule.conditions.to_state) || "",
+      subscribers: isEdit ? (rule.subscribers || []) : [],
+      title: (isEdit && rule.message && rule.message.title) || "",
+      body: (isEdit && rule.message && rule.message.body) || "",
+      priority: (isEdit && rule.message && rule.message.priority) || 3,
+      tags: (isEdit && rule.message && rule.message.tags) || "",
+      cooldown: isEdit ? (rule.cooldown_seconds || 60) : 60,
+    };
+
+    var dialog = document.createElement("div");
     dialog.className = "ntfy-dialog";
 
-    let name = "", entityId = "", fromState = "", toState = "";
-    let subscribers = [];
-    let title = "", body = "", priority = 3, tags = "", cooldown = 60;
-
-    dialog.innerHTML = `
-      <h2>New Rule</h2>
-      <div class="ntfy-form">
-        <label>Rule Name <input type="text" id="rule-name" value="" required></label>
-        <label>Entity ID <input type="text" id="rule-entity" value="" placeholder="e.g. sensor.temperature" required></label>
-        <div class="ntfy-field-row">
-          <label>From State (optional) <input type="text" id="rule-from" value=""></label>
-          <label>To State (optional) <input type="text" id="rule-to" value=""></label>
-        </div>
-        <div class="ntfy-section-label">Subscribers</div>
-        <div class="ntfy-checkbox-group" id="subscribers-list"></div>
-        <div class="ntfy-section-label">Message</div>
-        <label>Title (supports templates) <input type="text" id="rule-title" value=""></label>
-        <label>Body (supports templates) <textarea id="rule-body"></textarea></label>
-        <div class="ntfy-section-label">Options</div>
-        <label>Priority (1-5) <input type="range" id="rule-priority" min="1" max="5" value="3"></label>
-        <label>Tags (comma separated) <input type="text" id="rule-tags" value=""></label>
-        <label>Cooldown (seconds) <input type="number" id="rule-cooldown" value="60"></label>
-      </div>
-      <div class="ntfy-dialog-actions">
-        <button class="ntfy-btn ntfy-secondary" id="cancel-btn">Cancel</button>
-        <button class="ntfy-btn ntfy-primary" id="save-btn" disabled>Save</button>
-      </div>
-    `;
+    dialog.innerHTML =
+      "<h2>" + (isEdit ? "Edit Rule" : "New Rule") + "</h2>" +
+      '<div class="ntfy-form">' +
+      '  <label>Rule Name <input type="text" id="rule-name" value="' + this._escapeHtml(defaults.name) + '" required></label>' +
+      '  <label>Entity ID <input type="text" id="rule-entity" value="' + this._escapeHtml(defaults.entity_id) + '" placeholder="e.g. sensor.temperature" required></label>' +
+      '  <div class="ntfy-field-row">' +
+      '    <label>From State (optional) <input type="text" id="rule-from" value="' + this._escapeHtml(defaults.from_state) + '"></label>' +
+      '    <label>To State (optional) <input type="text" id="rule-to" value="' + this._escapeHtml(defaults.to_state) + '"></label>' +
+      '  </div>' +
+      '  <div class="ntfy-section-label">Subscribers</div>' +
+      '  <div class="ntfy-checkbox-group" id="subscribers-list"></div>' +
+      '  <div class="ntfy-section-label">Message</div>' +
+      '  <label>Title (supports templates) <input type="text" id="rule-title" value="' + this._escapeHtml(defaults.title) + '"></label>' +
+      '  <label>Body (supports templates) <textarea id="rule-body">' + this._escapeHtml(defaults.body) + '</textarea></label>' +
+      '  <div class="ntfy-section-label">Options</div>' +
+      '  <label>Priority (1-5) <input type="range" id="rule-priority" min="1" max="5" value="' + defaults.priority + '"></label>' +
+      '  <label>Tags (comma separated) <input type="text" id="rule-tags" value="' + this._escapeHtml(defaults.tags) + '"></label>' +
+      '  <label>Cooldown (seconds) <input type="number" id="rule-cooldown" value="' + defaults.cooldown + '"></label>' +
+      '</div>' +
+      '<div class="ntfy-dialog-actions">' +
+      '  <button class="ntfy-btn ntfy-secondary" id="cancel-btn">Cancel</button>' +
+      '  <button class="ntfy-btn ntfy-primary" id="save-btn" disabled>' + (isEdit ? "Save Changes" : "Save") + '</button>' +
+      '</div>';
 
     overlay.appendChild(dialog);
 
-    // Subscribers
-    const subsList = dialog.querySelector("#subscribers-list");
-    Object.entries(this._users).forEach(([userId, user]) => {
-      const label = document.createElement("label");
+    var subsList = dialog.querySelector("#subscribers-list");
+    Object.entries(this._users).forEach(function (entry) {
+      var userId = entry[0], user = entry[1];
+      var label = document.createElement("label");
       label.className = "ntfy-checkbox-label";
-      const cb = document.createElement("input");
+      var cb = document.createElement("input");
       cb.type = "checkbox";
-      cb.checked = subscribers.includes(userId);
-      cb.onchange = () => {
-        if (cb.checked) subscribers.push(userId);
-        else subscribers = subscribers.filter((id) => id !== userId);
+      cb.checked = defaults.subscribers.indexOf(userId) !== -1;
+      cb.onchange = function () {
+        var idx = defaults.subscribers.indexOf(userId);
+        if (cb.checked && idx === -1) defaults.subscribers.push(userId);
+        else if (!cb.checked && idx !== -1) defaults.subscribers.splice(idx, 1);
       };
       label.appendChild(cb);
       label.appendChild(document.createTextNode(user.name || userId));
       subsList.appendChild(label);
     });
 
-    const saveBtn = dialog.querySelector("#save-btn");
-    const nameInput = dialog.querySelector("#rule-name");
-    const entityInput = dialog.querySelector("#rule-entity");
+    var saveBtn = dialog.querySelector("#save-btn");
+    var nameInput = dialog.querySelector("#rule-name");
+    var entityInput = dialog.querySelector("#rule-entity");
     this._renderEntityAutocomplete(entityInput);
-    const priorityInput = dialog.querySelector("#rule-priority");
-    const priorityDisplay = document.createElement("span");
+    var priorityInput = dialog.querySelector("#rule-priority");
+    var priorityDisplay = document.createElement("span");
     priorityInput.parentNode.appendChild(priorityDisplay);
 
-    const updateSaveBtn = () => {
+    var updateSaveBtn = function () {
       saveBtn.disabled = !nameInput.value || !entityInput.value;
     };
-
-    const updatePriority = () => {
-      priorityDisplay.textContent = ` ${priorityInput.value}`;
+    var updatePriority = function () {
+      priorityDisplay.textContent = " " + priorityInput.value;
     };
 
     nameInput.oninput = updateSaveBtn;
@@ -737,40 +795,108 @@ class NtfyAlertsPanel extends HTMLElement {
     priorityInput.oninput = updatePriority;
     updatePriority();
 
-    saveBtn.onclick = async () => {
+    saveBtn.onclick = async function () {
       saveBtn.disabled = true;
       saveBtn.textContent = "Saving\u2026";
       try {
-        await this._ws({
-          type: "ntfy_alerts/save_rule",
-          rule: {
-            name: nameInput.value,
-            entity_id: entityInput.value,
-            conditions: {
-              from_state: dialog.querySelector("#rule-from").value || null,
-              to_state: dialog.querySelector("#rule-to").value || null,
-            },
-            subscribers,
-            message: {
-              title: dialog.querySelector("#rule-title").value,
-              body: dialog.querySelector("#rule-body").value,
-              priority: parseInt(priorityInput.value),
-              tags: dialog.querySelector("#rule-tags").value,
-            },
-            cooldown_seconds: parseInt(dialog.querySelector("#rule-cooldown").value) || 60,
-            enabled: true,
+        var payload = {
+          name: nameInput.value,
+          entity_id: entityInput.value,
+          conditions: {
+            from_state: dialog.querySelector("#rule-from").value || null,
+            to_state: dialog.querySelector("#rule-to").value || null,
           },
-        });
+          subscribers: defaults.subscribers,
+          message: {
+            title: dialog.querySelector("#rule-title").value,
+            body: dialog.querySelector("#rule-body").value,
+            priority: parseInt(priorityInput.value),
+            tags: dialog.querySelector("#rule-tags").value,
+          },
+          cooldown_seconds: parseInt(dialog.querySelector("#rule-cooldown").value) || 60,
+        };
+        if (isEdit) {
+          payload.enabled = rule.enabled !== false;
+          await this._ws({
+            type: "ntfy_alerts/update_rule",
+            rule_id: rule.rule_id,
+            updates: payload,
+          });
+        } else {
+          payload.enabled = true;
+          await this._ws({
+            type: "ntfy_alerts/save_rule",
+            rule: payload,
+          });
+        }
         this._closeDialog();
         this._loadRules();
       } catch (e) {
-        alert("Failed to save rule: " + (e?.message || e));
+        alert("Failed to save rule: " + (e && e.message ? e.message : e));
         saveBtn.disabled = false;
-        saveBtn.textContent = "Save";
+        saveBtn.textContent = isEdit ? "Save Changes" : "Save";
       }
     };
 
     dialog.querySelector("#cancel-btn").onclick = () => this._closeDialog();
+  }
+
+  _renderTestDialog(overlay) {
+    var dialog = document.createElement("div");
+    dialog.className = "ntfy-dialog";
+
+    var userIds = Object.keys(this._users);
+    var userOptions = userIds.map(function (uid) {
+      var u = this._users[uid];
+      return '<option value="' + this._escapeHtml(uid) + '">' + this._escapeHtml(u.name) + " (" + this._escapeHtml(u.topic) + ")</option>";
+    }, this).join("");
+
+    dialog.innerHTML =
+      "<h2>Test Notification</h2>" +
+      '<div class="ntfy-form">' +
+      '  <label>Send to <select id="test-user">' + (userOptions || '<option value="">No users configured</option>') + '</select></label>' +
+      '  <label>Message <textarea id="test-message">This is a test notification from ntfy Alerts.</textarea></label>' +
+      '</div>' +
+      '<div id="test-result" style="margin-top:8px;font-size:13px"></div>' +
+      '<div class="ntfy-dialog-actions">' +
+      '  <button class="ntfy-btn ntfy-secondary" id="cancel-btn">Close</button>' +
+      '  <button class="ntfy-btn ntfy-primary" id="test-send-btn"' + (userIds.length === 0 ? ' disabled' : '') + '>Send Test</button>' +
+      '</div>';
+
+    overlay.appendChild(dialog);
+
+    var sendBtn = dialog.querySelector("#test-send-btn");
+    var resultDiv = dialog.querySelector("#test-result");
+
+    var self = this;
+    sendBtn.onclick = async function () {
+      var selected = dialog.querySelector("#test-user").value;
+      if (!selected) return;
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Sending\u2026";
+      resultDiv.textContent = "";
+      resultDiv.style.color = "";
+      try {
+        var res = await self._ws({
+          type: "ntfy_alerts/send_test",
+          topic: self._users[selected].topic,
+        });
+        if (res && res.success) {
+          resultDiv.textContent = "Notification sent successfully!";
+          resultDiv.style.color = "green";
+        } else {
+          resultDiv.textContent = "Failed to send notification. Check the topic and server.";
+          resultDiv.style.color = "red";
+        }
+      } catch (e) {
+        resultDiv.textContent = "Error: " + (e && e.message ? e.message : e);
+        resultDiv.style.color = "red";
+      }
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Send Test";
+    };
+
+    dialog.querySelector("#cancel-btn").onclick = function () { self._closeDialog(); };
   }
 
   _renderUserManager(overlay) {

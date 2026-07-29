@@ -31,7 +31,11 @@ from .const import (
     DOMAIN,
     EVENT_LISTENER_KEY,
 )
-from .dispatcher import async_handle_state_change
+from .dispatcher import (
+    async_handle_state_change,
+    async_send_test_notification,
+    send_ntfy_notification,
+)
 from .rule_store import (
     async_add_rule,
     async_delete_rule,
@@ -64,6 +68,7 @@ WS_TYPE_UPDATE_RULE = "ntfy_alerts/update_rule"
 WS_TYPE_DELETE_RULE = "ntfy_alerts/delete_rule"
 WS_TYPE_ADD_USER = "ntfy_alerts/add_user"
 WS_TYPE_REMOVE_USER = "ntfy_alerts/remove_user"
+WS_TYPE_SEND_TEST = "ntfy_alerts/send_test"
 
 
 @websocket_command({vol.Required("type"): WS_TYPE_GET_RULES})
@@ -161,6 +166,21 @@ async def async_remove_user(
     connection.send_result(msg["id"], {"success": True})
 
 
+@websocket_command({vol.Required("type"): WS_TYPE_SEND_TEST, vol.Required("topic"): str})
+@async_response
+async def async_send_test(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    try:
+        result = await async_send_test_notification(hass, msg["topic"])
+        connection.send_result(msg["id"], {"success": result})
+    except Exception as err:
+        _LOGGER.exception("Error in async_send_test: %s", err)
+        connection.send_error(msg["id"], "internal_error", str(err))
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     config = dict(entry.data)
@@ -201,6 +221,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async_register_command(hass, async_handle_delete_rule)
     async_register_command(hass, async_add_user)
     async_register_command(hass, async_remove_user)
+    async_register_command(hass, async_send_test)
 
     try:
         await hass.http.async_register_static_paths(
@@ -239,6 +260,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             WS_TYPE_DELETE_RULE,
             WS_TYPE_ADD_USER,
             WS_TYPE_REMOVE_USER,
+            WS_TYPE_SEND_TEST,
         ]:
             hass.components.websocket_api.async_unregister_command(ws_type)
         try:
