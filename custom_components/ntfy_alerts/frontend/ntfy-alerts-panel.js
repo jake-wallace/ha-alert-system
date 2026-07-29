@@ -798,6 +798,7 @@ class NtfyAlertsPanel extends HTMLElement {
     entityInput.oninput = updateSaveBtn;
     priorityInput.oninput = updatePriority;
     updatePriority();
+    updateSaveBtn();
 
     var self = this;
     saveBtn.onclick = async function () {
