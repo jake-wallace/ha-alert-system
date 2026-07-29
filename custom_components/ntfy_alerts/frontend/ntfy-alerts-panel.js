@@ -593,7 +593,7 @@ class NtfyAlertsPanel extends HTMLElement {
       this._loading = false;
       this._renderContent();
     } catch (e) {
-      console.error("Failed to load ntfy rules:", e);
+      console.error("Failed to load ntfy rules:", e.message || e);
       this._rules = [];
       if (this._retryCount < 10) {
         this._retryCount++;
